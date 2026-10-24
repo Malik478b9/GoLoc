@@ -1,0 +1,64 @@
+# Production stack:
+#   cp .env.production.example .env.production   (fill it in)
+#   docker compose --env-file .env.production up -d --build
+#   docker compose --env-file .env.production exec api python manage.py create_admin 98XXXXXXXX --name "Ops"
+# One VPS runs it comfortably; scale the api with `docker compose up -d --scale api=3`.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-goloc}
+      POSTGRES_USER: ${POSTGRES_USER:-goloc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-goloc}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+
+  api: &backend
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_ENGINE: postgresql
+      POSTGRES_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      MEDIA_ROOT: /app/media
+      PRIVATE_MEDIA_ROOT: /app/private_media
+    volumes:
+      - media:/app/media
+      - private_media:/app/private_media
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    <<: *backend
+    command: ["worker"]
+    healthcheck: { disable: true }
+
+  beat:
+    <<: *backend
+    command: ["beat"]
+    healthcheck: { disable: true }
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx.Dockerfile
+    restart: unless-stopped
+    ports: ["${HTTP_PORT:-80}:80"]
+    volumes: [media:/srv/media:ro]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  media:
+  private_media:

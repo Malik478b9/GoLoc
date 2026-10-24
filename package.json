@@ -1,0 +1,19 @@
+{
+  "name": "goloc-mobile",
+  "private": true,
+  "workspaces": [
+    "mobile-core",
+    "traveler-mob",
+    "captain-mob"
+  ],
+  "scripts": {
+    "traveler": "npm --workspace traveler-mob run start",
+    "captain": "npm --workspace captain-mob run start",
+    "typecheck": "npm --workspace traveler-mob run typecheck && npm --workspace captain-mob run typecheck"
+  },
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0"
+  }
+}

@@ -1,162 +1,251 @@
 import uuid
+from datetime import time
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
+
+from apps.common.files import private_storage, upload_to, validate_document, validate_image
 
 
 class CaptainProfile(models.Model):
     """
-    Business Profile module (Section 2.2). One-to-one with a User whose
-    role == captain. Implements BR-1 (city-bound) and BR-3 (inactivity hold).
+    A local host's business. Bound to one city (BR-1). Visible to travelers
+    only when approved by Admin, switched live by the Captain and not on hold.
     """
 
-    class VerificationStatus(models.TextChoices):
-        PENDING = "pending", "Pending"
-        IN_REVIEW = "in_review", "In review"
-        VERIFIED = "verified", "Verified"
-        REJECTED = "rejected", "Rejected"
-
-    class LifecycleStatus(models.TextChoices):
+    class ReviewStatus(models.TextChoices):
         DRAFT = "draft", "Draft"
-        LIVE = "live", "Live"
-        ON_HOLD = "on_hold", "On hold"          # BR-3
-        SUSPENDED = "suspended", "Suspended"     # Admin/trust action
+        PENDING = "pending", "Pending review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Needs changes"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="captain_profile"
-    )
-    cap_id = models.CharField(
-        max_length=20, unique=True, db_index=True,
-        help_text="Human-readable lookup ID for Admin (BR-7), e.g. CAP-HYD-0001",
-    )
-
-    # BR-1: city-bound unless Admin expands.
-    home_city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="captains")
-    expanded_cities = models.ManyToManyField(
-        "cities.City", blank=True, related_name="expanded_captains",
-        help_text="Additional cities this Captain may operate in, granted by Admin.",
+    code = models.CharField(max_length=16, unique=True, help_text="Public ID, e.g. CAP-1001.")
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="captain_profile")
+    city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="captain_profiles")
+    tagline = models.CharField(max_length=140, blank=True)
+    bio = models.TextField(max_length=2000, blank=True)
+    avatar = models.ImageField(upload_to=upload_to("avatars"), validators=[validate_image], blank=True)
+    years_experience = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(60)])
+    languages = models.JSONField(default=list, blank=True)
+    categories = models.JSONField(default=list, blank=True)
+    max_bookings_per_day = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(10)]
     )
 
-    business_name = models.CharField(max_length=150, blank=True)
-    bio = models.TextField(blank=True)
-    specialties = models.CharField(max_length=255, blank=True, help_text="Comma-separated tags")
-    languages = models.CharField(max_length=255, blank=True)
+    review_status = models.CharField(max_length=16, choices=ReviewStatus.choices, default=ReviewStatus.DRAFT)
+    review_note = models.CharField(max_length=500, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
 
-    verification_status = models.CharField(
-        max_length=16, choices=VerificationStatus.choices, default=VerificationStatus.PENDING
-    )
-    verification_docs_url = models.URLField(
-        blank=True, help_text="Signed Azure Blob URL to KYC documents (private container)."
-    )
+    is_live = models.BooleanField(default=False)
+    is_on_hold = models.BooleanField(default=False, help_text="BR-3: inactive > 30 days or held by Admin.")
+    hold_reason = models.CharField(max_length=300, blank=True)
+    is_featured = models.BooleanField(default=False)
+    last_active_at = models.DateTimeField(default=timezone.now)
 
-    lifecycle_status = models.CharField(
-        max_length=16, choices=LifecycleStatus.choices, default=LifecycleStatus.DRAFT
-    )
-    last_activity_at = models.DateTimeField(null=True, blank=True)
-
-    average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
-    total_trips = models.PositiveIntegerField(default=0)
+    # Denormalised so lists and feeds never aggregate per row.
+    rating_avg = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    rating_count = models.PositiveIntegerField(default=0)
+    trips_completed = models.PositiveIntegerField(default=0)
+    profile_views = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [models.Index(fields=["home_city", "lifecycle_status"])]
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["city", "is_live", "review_status", "is_on_hold"]),
+            models.Index(fields=["review_status", "submitted_at"]),
+            models.Index(fields=["-rating_avg"]),
+        ]
 
     def __str__(self):
-        return f"{self.cap_id} · {self.business_name or self.user.full_name}"
+        return f"{self.code} {self.user.full_name}"
 
-    def is_bookable(self) -> bool:
-        return (
-            self.lifecycle_status == self.LifecycleStatus.LIVE
-            and self.verification_status == self.VerificationStatus.VERIFIED
-        )
+    @property
+    def name(self):
+        return self.user.full_name or self.code
 
+    @property
+    def is_bookable(self):
+        return self.is_live and not self.is_on_hold and self.review_status == self.ReviewStatus.APPROVED
 
-class Vehicle(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="vehicles")
-    vehicle_type = models.CharField(max_length=50, help_text="e.g. Sedan, SUV, Bike")
-    registration_number = models.CharField(max_length=20)
-    seating_capacity = models.PositiveSmallIntegerField(default=4)
-
-    def __str__(self):
-        return f"{self.vehicle_type} ({self.registration_number})"
+    def touch(self):
+        """Record activity for the BR-3 inactivity rule. Cheap: one UPDATE."""
+        CaptainProfile.objects.filter(pk=self.pk).update(last_active_at=timezone.now())
 
 
-class Tier(models.TextChoices):
-    NORMAL = "normal", "Normal"
-    MEDIUM = "medium", "Medium"
-    LAVISH = "lavish", "Lavish"
+class ServiceOffer(models.Model):
+    """
+    What a Captain sells.
+      experience — a day experience at one group price (+ per extra guest)
+      package    — multi-day, Captain-managed logistics, priced per person by tier
+    """
 
-
-class Service(models.Model):
-    """A Captain's bookable offering: a Day Experience or a multi-day Package."""
-
-    class ServiceType(models.TextChoices):
-        DAY_EXPERIENCE = "day_experience", "Day experience"
+    class Kind(models.TextChoices):
+        EXPERIENCE = "experience", "Day experience"
         PACKAGE = "package", "Full-service package"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="services")
-    service_type = models.CharField(max_length=20, choices=ServiceType.choices)
-    title = models.CharField(max_length=150)
-    description = models.TextField(blank=True)
-    duration_days = models.PositiveSmallIntegerField(default=1)
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.EXPERIENCE)
+    title = models.CharField(max_length=120)
+    description = models.TextField(max_length=2000, blank=True)
+    category = models.CharField(max_length=40)
+    cover_image = models.ImageField(upload_to=upload_to("services"), validators=[validate_image], blank=True)
+    max_guests = models.PositiveSmallIntegerField(default=4, validators=[MinValueValidator(1), MaxValueValidator(20)])
+
+    # experience pricing (₹ for the group)
+    price = models.PositiveIntegerField(default=0)
+    included_guests = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(1)])
+    extra_guest_price = models.PositiveIntegerField(default=0)
+    duration_hours = models.PositiveSmallIntegerField(default=4, validators=[MinValueValidator(1), MaxValueValidator(24)])
+    start_time = models.TimeField(default=time(9, 0))
+    stops = models.JSONField(default=list, blank=True, help_text="Ordered list of stop names.")
+
+    # package pricing (₹ per person)
+    duration_days = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(30)])
+    normal_price = models.PositiveIntegerField(default=0)
+    medium_price = models.PositiveIntegerField(default=0)
+    lavish_price = models.PositiveIntegerField(default=0)
+    tier_inclusions = models.JSONField(default=dict, blank=True, help_text='{"normal": ["…"], "medium": […], …}')
+    itinerary = models.JSONField(default=list, blank=True, help_text="One line per day.")
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind", "title"]
+        indexes = [models.Index(fields=["captain", "is_active"]), models.Index(fields=["category", "is_active"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(kind="experience", price__gt=0))
+                | models.Q(kind="package", normal_price__gt=0, medium_price__gte=models.F("normal_price"),
+                           lavish_price__gte=models.F("medium_price")),
+                name="service_prices_valid",
+            ),
+        ]
 
     def __str__(self):
         return self.title
 
+    def tier_price(self, tier):
+        return getattr(self, f"{tier}_price")
 
-class PricingTier(models.Model):
-    """
-    Per-tier pricing on a Service (Normal / Medium / Lavish — Section 2.4 / 3.3).
-    Day experiences typically only populate `normal`.
-    """
+    @property
+    def from_price(self):
+        return self.price if self.kind == self.Kind.EXPERIENCE else self.normal_price
+
+
+class Vehicle(models.Model):
+    class Kind(models.TextChoices):
+        CAR = "car", "Car"
+        SUV = "suv", "SUV / MPV"
+        MOTORCYCLE = "motorcycle", "Motorcycle"
+        TEMPO = "tempo", "Tempo traveller"
+        OTHER = "other", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="pricing_tiers")
-    tier = models.CharField(max_length=10, choices=Tier.choices)
-    price_per_person = models.DecimalField(max_digits=10, decimal_places=2)
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="vehicles")
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    make_model = models.CharField(max_length=100)
+    registration_number = models.CharField(max_length=20)
+    capacity = models.PositiveSmallIntegerField(default=4, validators=[MinValueValidator(1), MaxValueValidator(30)])
+    has_ac = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["service", "tier"]
-
-    def __str__(self):
-        return f"{self.service.title} · {self.tier} · ₹{self.price_per_person}"
+        ordering = ["created_at"]
 
 
-class PackageLineItem(models.Model):
-    """
-    BR-8: Package logistics — Captain owns hotel, food, transport per tier.
-    Recorded against the pricing tier for cost tracking and dispute records.
-    """
+class VerificationDocument(models.Model):
+    class DocType(models.TextChoices):
+        ID_PROOF = "id_proof", "Government ID (Aadhaar / PAN / Passport)"
+        DRIVING_LICENCE = "driving_licence", "Driving licence"
+        VEHICLE_RC = "vehicle_rc", "Vehicle RC"
+        VEHICLE_INSURANCE = "vehicle_insurance", "Vehicle insurance"
+        POLICE_VERIFICATION = "police_verification", "Police verification"
+        GUIDE_LICENCE = "guide_licence", "Tourist guide licence"
 
-    class Category(models.TextChoices):
-        HOTEL = "hotel", "Hotel / camp"
-        FOOD = "food", "Food"
-        TRANSPORT = "transport", "Transport"
-        PERMIT = "permit", "Permit"
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    pricing_tier = models.ForeignKey(PricingTier, on_delete=models.CASCADE, related_name="line_items")
-    category = models.CharField(max_length=20, choices=Category.choices)
-    description = models.CharField(max_length=255)
-    estimated_cost = models.DecimalField(max_digits=10, decimal_places=2)
-
-
-class Availability(models.Model):
-    """Calendar slots a Captain has opened up for booking requests."""
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="availability_slots")
-    date = models.DateField()
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="documents")
+    doc_type = models.CharField(max_length=24, choices=DocType.choices)
+    file = models.FileField(upload_to=upload_to("kyc"), storage=private_storage, validators=[validate_document])
+    number = models.CharField(max_length=40, blank=True)
+    expires_on = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    note = models.CharField(max_length=300, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+
+class WeeklySlot(models.Model):
+    """Weekday availability. weekday: 0 = Monday … 6 = Sunday."""
+
+    id = models.BigAutoField(primary_key=True)
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="weekly_slots")
+    weekday = models.PositiveSmallIntegerField(validators=[MaxValueValidator(6)])
     is_available = models.BooleanField(default=True)
-    note = models.CharField(max_length=255, blank=True)
+    start_time = models.TimeField(default=time(9, 0))
+    end_time = models.TimeField(default=time(18, 0))
 
     class Meta:
-        unique_together = ["captain", "date"]
+        ordering = ["weekday"]
+        constraints = [models.UniqueConstraint(fields=["captain", "weekday"], name="unique_captain_weekday")]
+
+
+class BlockedDate(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="blocked_dates")
+    date = models.DateField()
+    reason = models.CharField(max_length=120, blank=True)
+
+    class Meta:
         ordering = ["date"]
+        constraints = [models.UniqueConstraint(fields=["captain", "date"], name="unique_captain_blocked_date")]
+
+
+class PayoutAccount(models.Model):
+    class Method(models.TextChoices):
+        UPI = "upi", "UPI"
+        BANK = "bank", "Bank transfer"
+
+    captain = models.OneToOneField(CaptainProfile, on_delete=models.CASCADE, primary_key=True, related_name="payout_account")
+    method = models.CharField(max_length=8, choices=Method.choices)
+    account_holder = models.CharField(max_length=120)
+    upi_id = models.CharField(max_length=80, blank=True)
+    account_number = models.CharField(max_length=24, blank=True)
+    ifsc = models.CharField(max_length=11, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def masked(self):
+        if self.method == self.Method.UPI:
+            return self.upi_id
+        return f"A/c ••••{self.account_number[-4:]} · {self.ifsc}"
+
+
+class SavedCaptain(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    traveler = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_captains")
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="saved_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["traveler", "captain"], name="unique_saved_captain")]

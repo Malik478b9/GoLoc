@@ -5,25 +5,33 @@ from django.db import models
 
 
 class Conversation(models.Model):
-    """One conversation per Booking, between the Traveler and the Captain."""
+    """One thread per traveler ↔ Captain pair, reused across bookings."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    booking = models.OneToOneField(
-        "bookings.Booking", on_delete=models.CASCADE, related_name="conversation"
-    )
+    traveler = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conversations")
+    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.CASCADE, related_name="conversations")
+    booking = models.ForeignKey("bookings.Booking", null=True, blank=True, on_delete=models.SET_NULL,
+                                help_text="Most recent booking discussed.")
+    last_message_at = models.DateTimeField(null=True, blank=True)
+    last_message_preview = models.CharField(max_length=120, blank=True)
+    traveler_unread = models.PositiveIntegerField(default=0)
+    captain_unread = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"Conversation for {self.booking.bkg_id}"
+    class Meta:
+        ordering = ["-last_message_at"]
+        constraints = [models.UniqueConstraint(fields=["traveler", "captain"], name="unique_conversation_pair")]
+        indexes = [models.Index(fields=["traveler", "-last_message_at"]), models.Index(fields=["captain", "-last_message_at"])]
 
 
 class Message(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)  # monotonic → clients poll with ?after=<id>
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    body = models.TextField()
-    sent_at = models.DateTimeField(auto_now_add=True)
-    read_at = models.DateTimeField(null=True, blank=True)
+    sender_role = models.CharField(max_length=10)
+    body = models.CharField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["sent_at"]
+        ordering = ["id"]
+        indexes = [models.Index(fields=["conversation", "id"])]

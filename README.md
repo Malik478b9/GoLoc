@@ -1,103 +1,201 @@
-# GoLoc — Codebase
+# GoLoc — local travel marketplace (MVP)
 
-Starter implementation of the GoLoc local-travel marketplace, generated from
-the `GoLoc Technical Project Specification v1.0`. This is a working
-**Phase 0–2 scaffold** (Section 6.1 of that spec) — the foundation, business
-rules, and core screens are real and verified; a dev team picks this up from
-here rather than starting blank.
-
-## What's in here
+Travelers discover verified local **Captains** through reels, build a trip (day experience or a
+Normal / Medium / Lavish full-service package), pay in-app, and travel with live tracking, insurance
+and SOS. Captains run their own business from their phone. Admins govern everything from a
+phone-friendly console.
 
 ```
-goloc/
-├── backend/      Django + DRF + Channels API (Section 3: Backend / Database / Real-time)
-├── mobile/       React Native (Expo) app — Traveler + Captain, one codebase
-└── admin-web/    React admin console — Command Center, verification, disputes
+goloc-v2/
+├── backend/        Django 5.2 + DRF API, Celery jobs            → every app talks to this
+├── mobile-core/    Shared React Native code (@goloc/core)        → API client, auth, UI kit, map, chat, SOS, checkout
+├── traveler-mob/   Expo app · Traveler  (Local people. Real places. Safe bookings.)
+├── captain-mob/    Expo app · Captain   (Your city. Your business. Your income.)
+├── admin-desk/     React (Vite) admin console — mobile-first, works on a phone or a desktop
+├── deploy/         nginx config + image (serves media and the admin console)
+├── docker-compose.yml   Postgres · Redis · API · Celery worker · Celery beat · nginx
+├── traveler-desk/, captain-desk/   Older web apps — frozen, not updated for this API
 ```
 
-## What's implemented vs. what's next
+---
 
-| Layer | Implemented | Next up |
-|---|---|---|
-| Backend | All 12 apps, full model graph, JWT+OTP auth, business rules BR-1–BR-9 as real code, Razorpay+Route, Cloudflare Stream, Channels (chat/live-trip/SOS), Celery hold-sweep task | Wire real Cloudflare R2/Azure Blob storage backends, write the test suite, add DRF throttling/rate limits, staff-only Captain admin endpoint (see note in `admin-web/src/api/client.ts`) |
-| Mobile | Role-based navigation, OTP login, Discover/reels feed, Captain profile, Build My Trip + Razorpay Checkout, My Bookings + cancellation, Live Trip map + SOS, chat, full Captain side (dashboard/verification/pricing/availability/requests/earnings) | Push notification handling (FCM token registration is server-ready, client wiring is not), offline states, app icons/splash, TestFlight/Play Internal builds |
-| Admin web | Command Center dashboard, Captain search, BKG-ID lookup (BR-7), Incidents queue, Disputes resolution | Admin login screen (currently assumes a token is already in `localStorage`), Users/Cities/Content-moderation pages, Payments/Payouts/Reconciliation page, Promotions management |
+## Run it locally (about 5 minutes)
 
-Every file that implements a specific business rule or spec section has a
-comment citing it (e.g. `# BR-4: Time-based refunds`, `// Section 3.2 step 2`)
-— search for `BR-` or `Section` to trace code back to the spec.
-
-## Verified before delivery
-
-- `python manage.py check` — passes, 0 issues
-- `python manage.py makemigrations` — generates cleanly for all 12 apps (migrations are committed)
-- Mobile: `npm install && npx tsc --noEmit` — 0 type errors
-- Admin web: `npm install && npx tsc --noEmit && npx vite build` — builds clean
-
-## Getting the backend running locally
+### 1. API
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+.venv\Scripts\activate                    # Windows  (source .venv/bin/activate on Mac/Linux)
 pip install -r requirements.txt
-cp .env.example .env          # fill in Razorpay/Twilio/Cloudflare/etc. keys as you get them
-# Requires local Postgres + Redis, e.g.:
-#   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=goloc -e POSTGRES_USER=goloc -e POSTGRES_DB=goloc postgres:16
-#   docker run -d -p 6379:6379 redis:7
+copy .env.example .env                    # then set DEBUG=True and OTP_DEV_FIXED_CODE=123456
 python manage.py migrate
-python manage.py createsuperuser
-daphne goloc.asgi:application   # ASGI server — required for Channels (chat/live-trip/SOS)
-# in a second terminal, for the BR-3 hold-sweep job:
-celery -A goloc worker -B -l info
+python manage.py create_admin 98XXXXXXXX --name "You"   # your admin login
+# optional: python manage.py seed_demo   (6 demo Captains)   ·   python manage.py reset_data   (wipe back to empty)
+python manage.py runserver 0.0.0.0:8001
+python manage.py test apps                # 53 tests
 ```
 
-The API is versioned under `/api/v1/`; see `goloc/urls.py` for the full route
-map, one `include()` per app.
+Every login code is `123456` while `OTP_DEV_FIXED_CODE=123456` and `DEBUG=True`.
 
-## Getting the mobile app running locally
+| Who | Phone | App |
+|---|---|---|
+| Admin | 9876500000 | admin-desk |
+| Captains CAP-1001…1006 | 9000000001 … 9000000006 | captain-mob |
+| Traveler | any other number | traveler-mob |
+
+### 2. Mobile apps (Expo SDK 58)
 
 ```bash
-cd mobile
-npm install
-# point src/api/client.ts API_BASE_URL / WS_BASE_URL at your local backend
-npx expo start
+npm install                 # once, from the repo root (npm workspaces)
+npm run traveler            # or: npm run captain
 ```
 
-Requires the Expo Go app (or a dev build) on a device/simulator. Razorpay
-Checkout (`react-native-razorpay`) needs a native build (`expo prebuild`) —
-it will not run inside Expo Go.
+Scan the QR code with **Expo Go** on a phone on the same Wi-Fi. The app finds the API automatically
+(same machine as the bundler, port 8001) — no IP to edit. To point at a server instead, set
+`EXPO_PUBLIC_API_URL=https://api.goloc.in/api/v1` before `npm run …`.
 
-## Getting the admin console running locally
+Everything works in Expo Go (install the latest Expo Go — it must match SDK 58), except **push notifications**: Expo Go can't receive push
+on Android. The in-app notification inbox still works. For real push, make a development build
+(`npx eas build --profile development`) and add your EAS project id.
+
+**iPhone:** install **Expo Go** from the App Store and scan the QR code with the iPhone **Camera** app.
+Allow *Local Network* access when iOS asks, otherwise the app can't reach your laptop. The iOS
+Simulator needs a Mac; on Windows use a real iPhone, or a cloud build (below).
+
+### 3. Admin console
 
 ```bash
-cd admin-web
+cd admin-desk
 npm install
-# point src/api/client.ts API_BASE_URL at your local backend
-npm run dev
+npm run dev                 # http://localhost:5176
 ```
 
-## Where the business rules live
+---
 
-All nine rules from Section 2.4 of the spec are implemented as code, not
-just documented:
+## Try the whole flow
 
-| Rule | File |
+1. **Traveler app** → Discover → tap a reel → *Profile* → *Book your trip* → pick date, guests (and tier
+   for packages) → *Send request*.
+2. **Captain app** (CAP-1001) → Bookings → the request → *Accept*.
+3. **Traveler** → booking → *Pay* → the test checkout page → *Pay*. The booking is confirmed, and a
+   4-digit trip PIN and insurance policy appear.
+4. On the trip day, the **Captain** taps *Start trip with PIN* and enters the traveler's PIN. Both apps
+   now share live location. The traveler can *Share trip with family* and press *SOS*.
+5. **Admin console** → Safety / SOS → the alert, with live locations and one-tap call numbers →
+   Acknowledge / Resolve.
+6. **Captain** → *Complete trip*. The net amount lands in Earnings → *Withdraw*.
+7. **Admin** → Payouts → *Mark paid* with the UTR. **Traveler** → *Rate your trip*.
+
+To test a trip "today", book today's date, or move a booking's date in `/django-admin/`.
+
+---
+
+## Business rules → where they live
+
+| Rule | Behaviour | Code |
+|---|---|---|
+| BR-1 City-bound Captains | Captain picks one city; it locks after submission; Admin can move them | `captains/serializers.py` `validate_city_id` |
+| BR-2 Payout on completion | Captain's share is credited to the wallet only when the trip completes | `payments/services.py` `credit_trip` |
+| BR-3 1-month hold | No activity for 30 days → on hold, offline, payouts paused until Admin releases | `captains/services.py` `apply_inactivity_holds` (Celery beat) |
+| BR-4 Time-based refunds | ≥72h 100% · ≥48h 75% · ≥24h 50% · ≥6h 25% · else 0% of fare; insurance refunded if the trip never started; Captain cancel → 100% | `bookings/pricing.py` |
+| BR-5 Pay-to-protect | Live tracking and SOS refuse unpaid bookings | `trips/services.py` `ensure_protected` |
+| BR-6 Per-booking insurance | ₹49 × guests × days charged, policy `INS-BKG-…` issued on payment | `bookings/pricing.py`, `bookings/services.py` `mark_paid` |
+| BR-7 ID lookup | Admin search box takes CAP-, BKG-, PO-, SOS-, TKT- or a phone number | `adminops/views.py` `LookupView` |
+| BR-8 Package logistics | Tier inclusions are frozen on the booking; Captain sees "You arrange…" | `ServiceOffer.tier_inclusions`, `Booking.service_snapshot` |
+| BR-9 Reels → book | Feed → profile → *Book your trip*; views, profile opens and booking starts are tracked per post | `social/views.py`, traveler `reels.tsx` |
+| Revenue R1 / R2 | 18% commission on fare; insurance margin = fee − premium (both shown on the Admin dashboard) | settings `PLATFORM_COMMISSION_PERCENT`, `INSURANCE_*` |
+
+Booking lifecycle:
+`requested → accepted (2h to pay) → confirmed (PIN) → in_progress → completed`. Requests expire
+after 24 h and unpaid accepts after the payment window; both are handled by a Celery beat job
+every 5 minutes. Every change is written to a booking timeline that all three apps show.
+
+Safety and trust details:
+- Phone numbers stay hidden until the trip is paid.
+- Chat masks numbers and emails until there's a paid booking, which keeps deals on-platform.
+- KYC files are stored privately and only admins can open them (each view is audited).
+- Every admin action is logged in the audit log.
+
+---
+
+## Production
+
+```bash
+cp .env.production.example .env.production      # fill in secrets, Razorpay, Twilio
+docker compose --env-file .env.production up -d --build
+docker compose --env-file .env.production exec api python manage.py create_admin 98XXXXXXXX --name "Ops"
+```
+
+This runs Postgres 16, Redis, the API (gunicorn, threaded workers), a Celery worker, Celery beat and
+nginx. nginx serves uploads and the admin console at `/` and proxies `/api`, `/pay`, `/t` and
+`/django-admin`. Put HTTPS in front of it (a cloud load balancer, Caddy, or certbot) and forward
+`X-Forwarded-Proto`. Scale the API with `--scale api=3`.
+
+The API **refuses to start** in production if any of these is true:
+- `SECRET_KEY` is missing or a placeholder, or `ALLOWED_HOSTS` is `*`.
+- OTP is the console provider.
+- Payments are `fake` (unless `ALLOW_FAKE_PAYMENTS=True` for staging).
+- Razorpay keys are missing.
+- There's no Redis for background jobs.
+
+`manage.py check --deploy` passes (only the optional HSTS preload warning remains).
+
+**Speed at peak:**
+- Captain cards, feeds and lists are served from denormalised counters (rating, trips, likes,
+  views), so no per-row aggregation.
+- Hot indexes cover city/live/status, booking status plus expiry, and feed order.
+- Discovery and cities are cached in Redis; the latest live location is kept in Redis, so trip
+  polling never touches Postgres.
+- Feeds use cursor pagination.
+- Push, SMS and housekeeping run in Celery.
+- On the phone, React Query serves cached screens instantly and refreshes in the background.
+  Captain profiles prefetch on press-in. Reels keep only the visible video player alive.
+
+**Mobile release (works from Windows: EAS builds iOS in the cloud):**
+1. `npm i -g eas-cli`, then `eas login`.
+2. `eas init` in each app (adds the projectId used for push).
+3. Set your real API domain in each app's `eas.json` (`EXPO_PUBLIC_API_URL`).
+4. Build:
+   - `eas build -p ios --profile preview` installs on registered iPhones.
+   - `eas build -p ios --profile production` then `eas submit -p ios` goes to TestFlight / App Store.
+   - `eas build -p android --profile production` produces the Play Store bundle.
+
+iOS builds need an Apple Developer account (US$99/year); EAS creates the certificates for you.
+
+Bundle ids are `in.goloc.traveler` and `in.goloc.captain`.
+
+### Before real users
+
+- **Twilio Verify:** set it up for SMS OTP. India needs DLT sender registration, which takes a few days.
+- **Razorpay:** create keys and a webhook (`payment.captured`, `payment.failed`). Test keys work end
+  to end with no real money.
+- **Emergency directory:** add verified local police stations and hospitals per city (Admin → Cities
+  & emergency). Only national numbers (112, 100, 108, 1091, tourist helpline, 101) are seeded; we
+  don't ship unverified local numbers.
+- **Insurance:** the per-booking fee and premium are configurable, but no insurer API is connected
+  yet. Policies are recorded as `INS-<booking>` for reconciliation with your insurance partner.
+- **Payouts:** payouts are marked paid manually with a UTR. RazorpayX automation is a natural next
+  step.
+
+---
+
+## API map (`/api/v1/`)
+
+| Area | Endpoints |
 |---|---|
-| BR-1 City-bound Captains | `backend/apps/captains/models.py`, `views.py` (`CaptainDiscoveryViewSet`) |
-| BR-2 Payout on completion | `backend/apps/bookings/services.py` (`complete_booking`) |
-| BR-3 1-month hold | `backend/apps/captains/tasks.py` (`sweep_inactive_captains`, Celery beat) |
-| BR-4 Time-based refunds | `backend/apps/bookings/services.py` (`calculate_refund_percentage`, `cancel_booking`) |
-| BR-5 Pay-to-protect | `backend/apps/bookings/services.py` (`mark_booking_paid`), `backend/apps/safety/consumers.py` (refuses the socket if `sos_active` is false) |
-| BR-6 Per-booking insurance | `backend/apps/bookings/models.py` (`Booking.insurance_amount`), `serializers.py` |
-| BR-7 ID lookup | `backend/apps/bookings/views.py` (`BookingLookupView`), `admin-web/src/pages/Bookings.tsx` |
-| BR-8 Package logistics | `backend/apps/captains/models.py` (`PackageLineItem`), `backend/apps/bookings/models.py` (`PackageBookingLineItem`) |
-| BR-9 Reels → book funnel | `backend/apps/content/views.py` (`track_view`/`track_profile_open`/`track_booking_start`), mobile `DiscoverScreen.tsx` → `CaptainProfileScreen.tsx` → `BuildMyTripScreen.tsx` |
+| Auth | `auth/otp/request/` · `auth/otp/verify/` · `auth/token/refresh/` · `auth/logout/` · `auth/me/` · `auth/traveler-profile/` |
+| Captain self | `captain/profile/` (+`avatar/`) · `checklist/` · `submit/` · `go-live/` · `dashboard/` · `services/` · `vehicles/` · `documents/` · `availability/` (+`blocked/`) · `payout-account/` |
+| Discovery | `captains/` (filters: city, category, kind, language, q, sort) · `captains/<id or CAP-code>/` · `…/calendar/` · `captains/services/<id>/` · `captains/quote/` · `captains/match/` (Build My Trip) · `captains/saved/` |
+| Bookings | `bookings/` · `bookings/<id or BKG-code>/` · `…/accept|decline|cancel|start|complete/` · `…/cancel-preview/` |
+| Payments | `payments/bookings/<ref>/order/` · `payments/verify/` · `payments/webhooks/razorpay/` · `payments/wallet/` · `payments/payouts/` · pages `/pay/checkout/<token>/` |
+| Trips & SOS | `trips/<ref>/location/` · `trips/<ref>/live/` · `trips/<ref>/sos/` · `trips/emergency/` · `trips/shared/<token>/` · page `/t/<token>/` |
+| Social | `social/feed/` · `social/posts/<id>/like/` · `…/event/` · `social/mine/` (+`insights/`) |
+| Chat | `chat/` · `chat/<id>/messages/?after=<id>` |
+| Reviews | `reviews/` · `reviews/mine/` · `reviews/<id>/reply/` · `reviews/captains/<id>/` |
+| Notifications | `notifications/` · `unread/` · `read/` · `devices/` |
+| Support | `support/tickets/` |
+| Admin | `admin/dashboard/` · `lookup/` · `captains/…` · `documents/…` · `bookings/…` · `payments/` · `refunds/` · `payouts/…` · `sos/…` · `tickets/…` · `reviews/…` · `posts/…` · `users/…` · `cities/…` · `emergency/…` · `audit/` |
 
-## External dependencies to line up before a real pilot
-
-Per Section 8 of the spec:
-
-1. **Razorpay Route marketplace onboarding** — start this first; it has the longest lead time.
-2. **Insurance partner** — BR-5/BR-6 assume a licensed insurer/broker relationship; this is a business dependency, not something this codebase can stand in for.
-3. **Cloudflare account** (Stream + R2) and **Azure subscription** (Postgres, Redis, Blob, App Service/AKS).
-4. **Apple Developer Program** + **Google Play Console** accounts for store submission.
+Every error has the same shape: `{"detail", "code", "fields"?, "retry_after"?}`.
+Tokens carry the app role, so a Traveler token can't call Captain or Admin endpoints.

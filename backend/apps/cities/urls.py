@@ -1,8 +1,7 @@
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
-from .views import CityViewSet
+from . import views
 
-router = DefaultRouter()
-router.register("", CityViewSet, basename="city")
-
-urlpatterns = router.urls
+urlpatterns = [
+    path("", views.LiveCityListView.as_view(), name="city-list"),
+]

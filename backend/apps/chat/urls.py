@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
-from .views import ConversationViewSet
+from . import views
 
-router = DefaultRouter()
-router.register("conversations", ConversationViewSet, basename="conversation")
-
-urlpatterns = router.urls
+urlpatterns = [
+    path("", views.ConversationListView.as_view(), name="conversations"),
+    path("<uuid:pk>/messages/", views.MessagesView.as_view(), name="conversation-messages"),
+]

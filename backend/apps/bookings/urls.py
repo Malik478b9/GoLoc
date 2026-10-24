@@ -1,9 +1,10 @@
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
-from .views import BookingLookupView, BookingViewSet
+from . import views
 
-router = DefaultRouter()
-router.register("lookup", BookingLookupView, basename="booking-lookup")
-router.register("", BookingViewSet, basename="booking")
-
-urlpatterns = router.urls
+urlpatterns = [
+    path("", views.BookingListCreateView.as_view(), name="bookings"),
+    path("<str:ref>/", views.BookingDetailView.as_view(), name="booking-detail"),
+    path("<str:ref>/cancel-preview/", views.CancelPreviewView.as_view(), name="booking-cancel-preview"),
+    path("<str:ref>/<str:action>/", views.BookingActionView.as_view(), name="booking-action"),
+]

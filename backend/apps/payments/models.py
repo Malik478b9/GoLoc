@@ -1,56 +1,115 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 
 class Payment(models.Model):
-    """Traveler-side payment via Razorpay Checkout for a single Booking."""
-
     class Status(models.TextChoices):
         CREATED = "created", "Created"
-        SUCCESS = "success", "Success"
+        CAPTURED = "captured", "Captured"
         FAILED = "failed", "Failed"
         REFUNDED = "refunded", "Refunded"
+        PARTIALLY_REFUNDED = "partially_refunded", "Partially refunded"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    booking = models.OneToOneField("bookings.Booking", on_delete=models.CASCADE, related_name="payment")
-    razorpay_order_id = models.CharField(max_length=64, blank=True)
-    razorpay_payment_id = models.CharField(max_length=64, blank=True)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED)
+    booking = models.ForeignKey("bookings.Booking", on_delete=models.PROTECT, related_name="payments")
+    gateway = models.CharField(max_length=16)
+    order_id = models.CharField(max_length=64, unique=True)
+    payment_id = models.CharField(max_length=64, blank=True, db_index=True)
+    amount = models.PositiveIntegerField(help_text="₹")
+    refunded_amount = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CREATED)
+    method = models.CharField(max_length=20, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    captured_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"Payment for {self.booking.bkg_id} ({self.status})"
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["booking", "status"]), models.Index(fields=["status", "-created_at"])]
+
+    @property
+    def refundable(self):
+        return self.amount - self.refunded_amount
 
 
-class PayoutLedgerEntry(models.Model):
-    """
-    Captain earnings ledger. One row per booking's Captain-net share.
-    Status moves PENDING (paid by traveler, trip not yet complete) ->
-    AVAILABLE (BR-2: trip completed) -> PAID_OUT (Razorpay Route transfer done).
-    """
-
+class Refund(models.Model):
     class Status(models.TextChoices):
-        PENDING = "pending", "Pending completion"
-        AVAILABLE = "available", "Available for payout"
-        PAID_OUT = "paid_out", "Paid out"
-        HELD = "held", "Held (dispute/hold)"
+        PENDING = "pending", "Pending"
+        PROCESSED = "processed", "Processed"
+        FAILED = "failed", "Failed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    captain = models.ForeignKey(
-        "captains.CaptainProfile", on_delete=models.PROTECT, related_name="ledger_entries"
-    )
-    booking = models.OneToOneField("bookings.Booking", on_delete=models.CASCADE, related_name="ledger_entry")
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
-    razorpay_route_transfer_id = models.CharField(max_length=64, blank=True)
+    payment = models.ForeignKey(Payment, on_delete=models.PROTECT, related_name="refunds")
+    booking = models.ForeignKey("bookings.Booking", on_delete=models.PROTECT, related_name="refunds")
+    amount = models.PositiveIntegerField()
+    reason = models.CharField(max_length=300)
+    gateway_refund_id = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
-    paid_out_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        indexes = [models.Index(fields=["captain", "status"])]
+        ordering = ["-created_at"]
 
-    def __str__(self):
-        return f"{self.captain.cap_id} · ₹{self.amount} · {self.status}"
+
+class Payout(models.Model):
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "Requested"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=16, unique=True)
+    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="payouts")
+    amount = models.PositiveIntegerField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.REQUESTED)
+    destination = models.CharField(max_length=120, help_text="Masked UPI / bank account at request time.")
+    reference = models.CharField(max_length=64, blank=True, help_text="UTR / transfer reference.")
+    note = models.CharField(max_length=300, blank=True)
+    processed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+
+class LedgerEntry(models.Model):
+    """
+    Captain wallet. Append-only; balance = SUM(amount). Credits land only when
+    a trip completes (BR-2); a payout request debits immediately so the same
+    money can't be requested twice; a failed payout is reversed with a credit.
+    """
+
+    class Kind(models.TextChoices):
+        TRIP_EARNING = "trip_earning", "Trip earning"
+        PAYOUT = "payout", "Payout"
+        PAYOUT_REVERSAL = "payout_reversal", "Payout reversal"
+        ADJUSTMENT = "adjustment", "Adjustment"
+
+    id = models.BigAutoField(primary_key=True)
+    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="ledger")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    amount = models.IntegerField(help_text="₹, signed")
+    booking = models.ForeignKey("bookings.Booking", null=True, blank=True, on_delete=models.PROTECT)
+    payout = models.ForeignKey(Payout, null=True, blank=True, on_delete=models.PROTECT)
+    note = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["captain", "-created_at"])]
+        constraints = [
+            models.UniqueConstraint(fields=["booking"], condition=models.Q(kind="trip_earning"), name="one_earning_per_booking"),
+        ]
+
+
+class WebhookEvent(models.Model):
+    """Dedupe gateway webhooks (they are retried and can arrive twice)."""
+
+    event_id = models.CharField(max_length=80, primary_key=True)
+    received_at = models.DateTimeField(auto_now_add=True)

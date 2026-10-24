@@ -1,172 +1,566 @@
-import uuid
+import hashlib
+from datetime import timedelta
 
-from django.db.models import Q
+from django.conf import settings
+
+from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import Http404
+from django.db import transaction
+from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Subquery, When
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import permissions, status, viewsets
-from rest_framework.decorators import action
+from rest_framework import generics, serializers, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Availability, CaptainProfile, PricingTier, Service, Vehicle
-from .serializers import (
-    AvailabilitySerializer,
-    CaptainProfileSerializer,
-    CaptainPublicProfileSerializer,
-    PricingTierSerializer,
-    ServiceSerializer,
-    VehicleSerializer,
-)
+from apps.accounts.permissions import IsCaptain, IsTraveler
+from apps.bookings import pricing
+from apps.cities.models import City
+from apps.common.api import bad_request, conflict, role_of
+from apps.common.files import validate_image
+from apps.notifications.service import notify_admins
 
-
-class IsOwnerCaptain(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        return obj.user_id == request.user.id
-
-
-def _next_cap_id(city_code: str) -> str:
-    seq = CaptainProfile.objects.count() + 1
-    return f"CAP-{city_code.upper()[:3]}-{seq:04d}"
+from . import services
+from .models import BlockedDate, CaptainProfile, PayoutAccount, SavedCaptain, ServiceOffer, Vehicle, VerificationDocument
+from .serializers import (CATEGORIES, LANGUAGES, BlockedDateSerializer, CaptainCardSerializer, CaptainDetailSerializer,
+                          DocumentSerializer, MyProfileSerializer, PayoutAccountSerializer, PublicServiceSerializer,
+                          ServiceSerializer, VehicleSerializer, WeeklySlotSerializer)
 
 
-class MyCaptainProfileView(viewsets.ViewSet):
-    """
-    Business setup module (Section 2.2): the logged-in Captain manages
-    their own profile, verification submission, and go-live toggle.
-    """
-
-    permission_classes = [permissions.IsAuthenticated]
-
-    def retrieve(self, request):
-        profile = getattr(request.user, "captain_profile", None)
-        if not profile:
-            return Response({"detail": "No Captain profile yet."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(CaptainProfileSerializer(profile).data)
-
-    def create(self, request):
-        """Onboarding: create the Captain profile shell before verification."""
-        home_city_id = request.data.get("home_city")
-        if CaptainProfile.objects.filter(user=request.user).exists():
-            return Response({"detail": "Profile already exists."}, status=status.HTTP_400_BAD_REQUEST)
-
-        from apps.cities.models import City
-
-        city = City.objects.get(pk=home_city_id)
-        profile = CaptainProfile.objects.create(
-            id=uuid.uuid4(),
-            user=request.user,
-            home_city=city,
-            cap_id=_next_cap_id(city.name),
-            business_name=request.data.get("business_name", ""),
-            bio=request.data.get("bio", ""),
-        )
-        request.user.role = request.user.Role.CAPTAIN
-        request.user.save(update_fields=["role"])
-        return Response(CaptainProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=["post"])
-    def submit_verification(self, request):
-        """Captain uploads KYC docs (Azure Blob signed URL) for Admin review."""
-        profile = request.user.captain_profile
-        profile.verification_docs_url = request.data.get("docs_url", "")
-        profile.verification_status = CaptainProfile.VerificationStatus.IN_REVIEW
-        profile.save(update_fields=["verification_docs_url", "verification_status"])
-        return Response(CaptainProfileSerializer(profile).data)
-
-    @action(detail=False, methods=["post"])
-    def go_live(self, request):
-        """
-        Go-live toggle. Requires verification to be complete — enforces
-        that unverified Captains can never appear in Traveler search.
-        """
-        profile = request.user.captain_profile
-        if profile.verification_status != CaptainProfile.VerificationStatus.VERIFIED:
-            return Response(
-                {"detail": "Captain must be verified before going live."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        profile.lifecycle_status = CaptainProfile.LifecycleStatus.LIVE
-        profile.last_activity_at = timezone.now()
-        profile.save(update_fields=["lifecycle_status", "last_activity_at"])
-        return Response(CaptainProfileSerializer(profile).data)
+def my_profile(request) -> CaptainProfile:
+    profile = CaptainProfile.objects.select_related("user", "city").filter(user=request.user).first()
+    if profile is None:
+        raise conflict("Set up your business profile first.", "no_profile")
+    return profile
 
 
-class MyServiceViewSet(viewsets.ModelViewSet):
-    """Captain's own Services & Pricing (Section 2.2 · 'Operate' group)."""
+# ================================================================ captain self-service
+class OptionsView(APIView):
+    """GET /captain/options/ — lists the apps use for pickers."""
 
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({
+            "languages": LANGUAGES,
+            "categories": CATEGORIES,
+            "document_types": [{"value": v, "label": l} for v, l in VerificationDocument.DocType.choices],
+            "vehicle_kinds": [{"value": v, "label": l} for v, l in Vehicle.Kind.choices],
+            "refund_schedule": pricing.refund_schedule_for_display(),
+        })
+
+
+class MyProfileView(APIView):
+    """GET → profile or null. PUT creates on first call, updates after."""
+
+    permission_classes = [IsCaptain]
+
+    def get(self, request):
+        profile = CaptainProfile.objects.select_related("user", "city").filter(user=request.user).first()
+        if profile and timezone.now() - profile.last_active_at > timedelta(hours=6):
+            profile.touch()
+        return Response(MyProfileSerializer(profile, context={"request": request}).data if profile else None)
+
+    def put(self, request):
+        profile = CaptainProfile.objects.filter(user=request.user).first()
+        s = MyProfileSerializer(profile, data=request.data, partial=profile is not None, context={"request": request})
+        s.is_valid(raise_exception=True)
+        if profile is None:
+            data = dict(s.validated_data)
+            user_data = data.pop("user", {})
+            if user_data.get("full_name", "").strip():
+                request.user.full_name = user_data["full_name"].strip()
+                request.user.save(update_fields=["full_name"])
+            profile = services.create_profile(request.user, **data)
+        else:
+            profile = s.save()
+        return Response(MyProfileSerializer(profile, context={"request": request}).data)
+
+
+class AvatarView(APIView):
+    permission_classes = [IsCaptain]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = "upload"
+
+    def post(self, request):
+        profile = my_profile(request)
+        file = request.FILES.get("avatar")
+        if not file:
+            raise bad_request("Attach a photo.", "file_required")
+        try:
+            validate_image(file)
+        except Exception as exc:  # noqa: BLE001 — Django ValidationError → API error
+            raise bad_request(exc.messages[0] if hasattr(exc, "messages") else str(exc), "invalid_file")
+        profile.avatar.save(file.name, file, save=True)
+        return Response(MyProfileSerializer(profile, context={"request": request}).data)
+
+
+class ChecklistView(APIView):
+    permission_classes = [IsCaptain]
+
+    def get(self, request):
+        return Response(services.checklist(my_profile(request)))
+
+
+class SubmitView(APIView):
+    permission_classes = [IsCaptain]
+
+    def post(self, request):
+        profile = my_profile(request)
+        check = services.checklist(profile)
+        if not check["can_submit"]:
+            missing = [i["label"] for i in check["items"] if not i["done"] and i["key"] != "approved"]
+            raise bad_request("Finish these first: " + "; ".join(missing) if missing else "Already submitted.", "incomplete")
+        profile.review_status = CaptainProfile.ReviewStatus.PENDING
+        profile.submitted_at = timezone.now()
+        profile.review_note = ""
+        profile.save(update_fields=["review_status", "submitted_at", "review_note", "updated_at"])
+        notify_admins("captain_submitted", f"New Captain to verify · {profile.code}", f"{profile.name} · {profile.city.name}",
+                      {"captain_id": profile.id})
+        return Response(MyProfileSerializer(profile, context={"request": request}).data)
+
+
+class GoLiveView(APIView):
+    """POST {"is_live": true|false}"""
+
+    permission_classes = [IsCaptain]
+
+    def post(self, request):
+        profile = my_profile(request)
+        want = bool(request.data.get("is_live", not profile.is_live))
+        if want:
+            check = services.checklist(profile)
+            if profile.is_on_hold:
+                raise conflict("Your account is on hold. Contact GoLoc support.", "on_hold")
+            if not check["can_go_live"]:
+                raise conflict("You can go live once GoLoc approves your profile and documents.", "not_approved")
+        profile.is_live = want
+        profile.last_active_at = timezone.now()
+        profile.save(update_fields=["is_live", "last_active_at", "updated_at"])
+        return Response({"is_live": profile.is_live})
+
+
+class ServiceListView(generics.ListCreateAPIView):
+    permission_classes = [IsCaptain]
     serializer_class = ServiceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
-        return Service.objects.filter(captain__user=self.request.user)
+        return ServiceOffer.objects.filter(captain__user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(captain=self.request.user.captain_profile)
+        profile = my_profile(self.request)
+        if profile.services.filter(is_active=True).count() >= 20:
+            raise bad_request("You can list up to 20 active services.", "limit")
+        serializer.save(captain=profile)
 
 
-class MyVehicleViewSet(viewsets.ModelViewSet):
+class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsCaptain]
+    serializer_class = ServiceSerializer
+
+    def get_queryset(self):
+        return ServiceOffer.objects.filter(captain__user=self.request.user)
+
+    def perform_destroy(self, instance):
+        if instance.bookings.exists():  # keep history intact
+            instance.is_active = False
+            instance.save(update_fields=["is_active", "updated_at"])
+        else:
+            instance.delete()
+
+
+class ServiceCoverView(APIView):
+    permission_classes = [IsCaptain]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = "upload"
+
+    def post(self, request, pk):
+        service = get_object_or_404(ServiceOffer, pk=pk, captain__user=request.user)
+        file = request.FILES.get("image")
+        if not file:
+            raise bad_request("Attach an image.", "file_required")
+        try:
+            validate_image(file)
+        except Exception as exc:  # noqa: BLE001
+            raise bad_request(exc.messages[0] if hasattr(exc, "messages") else str(exc), "invalid_file")
+        service.cover_image.save(file.name, file, save=True)
+        return Response(ServiceSerializer(service, context={"request": request}).data)
+
+
+class VehicleListView(generics.ListCreateAPIView):
+    permission_classes = [IsCaptain]
     serializer_class = VehicleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         return Vehicle.objects.filter(captain__user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(captain=self.request.user.captain_profile)
+        serializer.save(captain=my_profile(self.request))
 
 
-class MyAvailabilityViewSet(viewsets.ModelViewSet):
-    serializer_class = AvailabilitySerializer
-    permission_classes = [permissions.IsAuthenticated]
+class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsCaptain]
+    serializer_class = VehicleSerializer
 
     def get_queryset(self):
-        return Availability.objects.filter(captain__user=self.request.user)
+        return Vehicle.objects.filter(captain__user=self.request.user)
+
+
+class DocumentListView(generics.ListCreateAPIView):
+    permission_classes = [IsCaptain]
+    serializer_class = DocumentSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    pagination_class = None
+    throttle_scope = "upload"
+
+    def get_queryset(self):
+        return VerificationDocument.objects.filter(captain__user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(captain=self.request.user.captain_profile)
-        self.request.user.captain_profile.last_activity_at = timezone.now()
-        self.request.user.captain_profile.save(update_fields=["last_activity_at"])
+        profile = my_profile(self.request)
+        serializer.save(captain=profile)
+        if profile.review_status == CaptainProfile.ReviewStatus.APPROVED:
+            notify_admins("document_uploaded", f"Document to verify · {profile.code}",
+                          serializer.instance.get_doc_type_display(), {"captain_id": profile.id})
 
 
-class ServicePricingTierViewSet(viewsets.ModelViewSet):
+class AvailabilityView(APIView):
+    """GET weekly + blocked + capacity. PUT {"weekly": [...7], "max_bookings_per_day": n}"""
+
+    permission_classes = [IsCaptain]
+
+    def get(self, request):
+        profile = my_profile(request)
+        return Response(self._data(profile))
+
+    def put(self, request):
+        profile = my_profile(request)
+        weekly = request.data.get("weekly")
+        if weekly is not None:
+            s = WeeklySlotSerializer(data=weekly, many=True)
+            s.is_valid(raise_exception=True)
+            with transaction.atomic():
+                for row in s.validated_data:
+                    profile.weekly_slots.update_or_create(weekday=row["weekday"], defaults=row)
+        cap = request.data.get("max_bookings_per_day")
+        if cap is not None:
+            try:
+                cap = int(cap)
+            except (TypeError, ValueError):
+                cap = 0
+            if not 1 <= cap <= 10:
+                raise bad_request("Daily capacity must be between 1 and 10.", "invalid_capacity")
+            profile.max_bookings_per_day = cap
+            profile.save(update_fields=["max_bookings_per_day", "updated_at"])
+        return Response(self._data(profile))
+
+    @staticmethod
+    def _data(profile):
+        today = timezone.localdate()
+        return {
+            "weekly": WeeklySlotSerializer(profile.weekly_slots.all(), many=True).data,
+            "blocked": BlockedDateSerializer(profile.blocked_dates.filter(date__gte=today), many=True).data,
+            "max_bookings_per_day": profile.max_bookings_per_day,
+        }
+
+
+class BlockedDateView(APIView):
+    permission_classes = [IsCaptain]
+
+    def post(self, request):
+        profile = my_profile(request)
+        s = BlockedDateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        if s.validated_data["date"] < timezone.localdate():
+            raise bad_request("Choose a future date.", "date_in_past")
+        obj, _ = BlockedDate.objects.update_or_create(captain=profile, date=s.validated_data["date"],
+                                                      defaults={"reason": s.validated_data.get("reason", "")})
+        return Response(BlockedDateSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk):
+        BlockedDate.objects.filter(pk=pk, captain__user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PayoutAccountView(APIView):
+    permission_classes = [IsCaptain]
+
+    def get(self, request):
+        account = PayoutAccount.objects.filter(captain__user=request.user).first()
+        return Response(PayoutAccountSerializer(account).data if account else None)
+
+    def put(self, request):
+        profile = my_profile(request)
+        s = PayoutAccountSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        account, _ = PayoutAccount.objects.update_or_create(captain=profile, defaults=s.validated_data)
+        return Response(PayoutAccountSerializer(account).data)
+
+
+class DashboardView(APIView):
+    permission_classes = [IsCaptain]
+
+    def get(self, request):
+        from apps.bookings.models import Booking
+        from apps.bookings.serializers import BookingListSerializer
+        from apps.payments.services import wallet
+
+        profile = my_profile(request)
+        today = timezone.localdate()
+        bookings = Booking.objects.filter(captain=profile).select_related("traveler", "service", "city", "captain__user")
+        upcoming = bookings.filter(status__in=[Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS], end_date__gte=today).order_by("start_date", "start_time")
+        pending = bookings.filter(status=Booking.Status.REQUESTED).order_by("request_expires_at")
+        from apps.social.models import Post
+
+        reel_views = sum(Post.objects.filter(captain=profile, status="published").values_list("view_count", flat=True))
+        return Response({
+            "profile": MyProfileSerializer(profile, context={"request": request}).data,
+            "checklist": services.checklist(profile),
+            "wallet": wallet(profile),
+            "upcoming": BookingListSerializer(upcoming[:5], many=True, context={"request": request, "role": "captain"}).data,
+            "upcoming_count": upcoming.count(),
+            "pending_requests": BookingListSerializer(pending[:5], many=True, context={"request": request, "role": "captain"}).data,
+            "pending_count": pending.count(),
+            "reel_views": reel_views,
+        })
+
+
+# ================================================================ public discovery
+def bookable_captains():
+    active = ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True)
+    price = active.annotate(p=Case(When(kind="experience", then=F("price")), default=F("normal_price"),
+                                   output_field=IntegerField())).order_by("p").values("p")[:1]
+    return (
+        CaptainProfile.objects.filter(is_live=True, is_on_hold=False, review_status=CaptainProfile.ReviewStatus.APPROVED,
+                                      city__is_live=True)
+        .filter(Exists(active))
+        .select_related("user", "city")
+        .annotate(from_price=Subquery(price, output_field=IntegerField()),
+                  has_package=Exists(active.filter(kind="package")))
+    )
+
+
+def _saved_ids(request, ids):
+    if role_of(request) != "traveler" or not ids:
+        return set()
+    return set(SavedCaptain.objects.filter(traveler=request.user, captain_id__in=ids).values_list("captain_id", flat=True))
+
+
+class DiscoveryView(generics.ListAPIView):
     """
-    Nested under a Service: POST /api/v1/captains/services/<service_id>/pricing-tiers/
-    Lets a Captain set Normal/Medium/Lavish pricing (Section 3.3) on their own service.
+    GET /captains/?city=hyderabad&category=food&kind=package&language=Hindi&q=…&sort=rating|price_low|price_high|trips
+    Public. Cached briefly per query since it's the hottest read in the app.
     """
 
-    serializer_class = PricingTierSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AllowAny]
+    serializer_class = CaptainCardSerializer
 
     def get_queryset(self):
-        return PricingTier.objects.filter(
-            service_id=self.kwargs["service_pk"], service__captain__user=self.request.user
-        )
+        p = self.request.query_params
+        qs = bookable_captains()
+        if p.get("city"):
+            qs = qs.filter(city__slug=p["city"])
+        if p.get("category"):
+            qs = qs.filter(Q(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, category=p["category"])))
+                           | Q(categories__icontains=f'"{p["category"]}"'))
+        if p.get("kind") in {"experience", "package"}:
+            qs = qs.filter(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, kind=p["kind"])))
+        if p.get("language"):
+            qs = qs.filter(languages__icontains=f'"{p["language"][:30]}"')
+        q = p.get("q", "").strip()[:60]
+        if q:
+            qs = qs.filter(Q(user__full_name__icontains=q) | Q(tagline__icontains=q) | Q(code__iexact=q)
+                           | Q(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, title__icontains=q))))
+        if p.get("min_rating"):
+            try:
+                qs = qs.filter(rating_avg__gte=float(p["min_rating"]))
+            except ValueError:
+                pass
+        if p.get("max_price", "").isdigit():
+            qs = qs.filter(from_price__lte=int(p["max_price"]))
+        order = {
+            "rating": ["-rating_avg", "-rating_count"],
+            "price_low": ["from_price", "-rating_avg"],
+            "price_high": ["-from_price", "-rating_avg"],
+            "trips": ["-trips_completed"],
+        }.get(p.get("sort"), ["-is_featured", "-rating_avg", "-trips_completed", "code"])
+        return qs.order_by(*order)
 
-    def perform_create(self, serializer):
-        service = Service.objects.get(pk=self.kwargs["service_pk"], captain__user=self.request.user)
-        serializer.save(service=service)
+    def list(self, request, *args, **kwargs):
+        from .signals import discovery_version
+
+        key = f"disc:{discovery_version()}:" + hashlib.md5(request.get_full_path().encode()).hexdigest()
+        data = cache.get(key)
+        if data is None:
+            data = super().list(request, *args, **kwargs).data
+            cache.set(key, data, 30)
+        saved = _saved_ids(request, [c["id"] for c in data["results"]])
+        results = [{**c, "saved": c["id"] in {str(s) for s in saved}} for c in data["results"]]
+        return Response({**data, "results": results})
 
 
-class CaptainDiscoveryViewSet(viewsets.ReadOnlyModelViewSet):
+def _get_captain(id_or_code):
+    qs = bookable_captains().prefetch_related("services", "vehicles")
+    if str(id_or_code).upper().startswith("CAP-"):
+        return get_object_or_404(qs, code=str(id_or_code).upper())
+    try:
+        return get_object_or_404(qs, pk=id_or_code)
+    except DjangoValidationError as exc:  # malformed UUID
+        raise Http404 from exc
+
+
+class CaptainDetailView(APIView):
+    """GET /captains/<id or CAP-code>/ — public profile with services, reels and reviews."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, id_or_code):
+        from apps.reviews.views import PublicReviewSerializer
+        from apps.social.serializers import PostSerializer
+
+        captain = _get_captain(id_or_code)
+        viewer = str(request.user.pk) if request.user.is_authenticated else request.META.get("REMOTE_ADDR", "")
+        if cache.add(f"pv:{captain.pk}:{viewer}", 1, 3600):
+            CaptainProfile.objects.filter(pk=captain.pk).update(profile_views=F("profile_views") + 1)
+        data = CaptainDetailSerializer(captain, context={"request": request}).data
+        posts = captain.posts.filter(status="published").select_related("captain__user", "city")[:9]
+        reviews = captain.reviews.filter(is_hidden=False).select_related("traveler")[:5]
+        data["posts"] = PostSerializer(posts, many=True, context={"request": request}).data
+        data["reviews"] = PublicReviewSerializer(reviews, many=True).data
+        data["saved"] = bool(_saved_ids(request, [captain.pk]))
+        return Response(data)
+
+
+class PublicServiceView(APIView):
+    """GET /captains/services/<id>/ — one bookable service with its Captain (booking screen)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        service = get_object_or_404(ServiceOffer.objects.filter(is_active=True, captain__in=bookable_captains()), pk=pk)
+        captain = bookable_captains().get(pk=service.captain_id)
+        return Response({
+            "service": PublicServiceSerializer(service, context={"request": request}).data,
+            "captain": CaptainCardSerializer(captain, context={"request": request}).data,
+            "refund_schedule": pricing.refund_schedule_for_display(),
+            "insurance_fee_per_guest_day": settings.INSURANCE_FEE_PER_GUEST_DAY,
+        })
+
+
+class CaptainCalendarView(APIView):
+    """GET /captains/<id>/calendar/?from=YYYY-MM-DD&days=60 → dates that can't be booked."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, id_or_code):
+        captain = _get_captain(id_or_code)
+        try:
+            start = serializers.DateField().to_internal_value(request.query_params.get("from") or str(timezone.localdate()))
+        except serializers.ValidationError:
+            start = timezone.localdate()
+        days = min(max(int(request.query_params.get("days", 60) or 60), 1), 120)
+        end = start + timedelta(days=days - 1)
+        return Response({"from": start, "to": end, "unavailable": services.booked_dates(captain, start, end)})
+
+
+class QuoteView(APIView):
+    """POST /captains/quote/ {service_id, tier, guests} → price breakdown before booking."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        service = get_object_or_404(ServiceOffer, pk=request.data.get("service_id"), is_active=True)
+        tier = request.data.get("tier") or ("normal" if service.kind == "package" else "standard")
+        try:
+            guests = int(request.data.get("guests", 1))
+        except (TypeError, ValueError):
+            guests = 0
+        if not 1 <= guests <= service.max_guests:
+            raise bad_request(f"Choose 1–{service.max_guests} guests.", "invalid_guests")
+        if service.kind == "package" and tier not in {"normal", "medium", "lavish"}:
+            raise bad_request("Choose Normal, Medium or Lavish.", "tier_required")
+        return Response({**pricing.quote(service, tier, guests).as_dict(), "tier": tier, "guests": guests})
+
+
+class MatchSerializer(serializers.Serializer):
+    city = serializers.SlugRelatedField(slug_field="slug", queryset=City.objects.filter(is_live=True))
+    start_date = serializers.DateField()
+    guests = serializers.IntegerField(min_value=1, max_value=20)
+    kind = serializers.ChoiceField(choices=["experience", "package"])
+    tier = serializers.ChoiceField(choices=["normal", "medium", "lavish"], required=False, default="medium")
+    interests = serializers.ListField(child=serializers.ChoiceField(choices=CATEGORIES), required=False, default=list, max_length=8)
+    languages = serializers.ListField(child=serializers.CharField(max_length=30), required=False, default=list, max_length=5)
+    budget = serializers.IntegerField(min_value=0, required=False, allow_null=True)
+
+
+class MatchView(APIView):
     """
-    Traveler-facing 'Find Captains' (Section 3.1) and public profile view
-    (BR-9: Reels -> Profile -> Book funnel). City-scoped per BR-1.
+    POST /captains/match/ — Build My Trip. Ranks Captains in the city by how well
+    their best-fitting service matches, with a live price and availability.
     """
 
-    serializer_class = CaptainPublicProfileSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        s = MatchSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        d = s.validated_data
+        if d["start_date"] < timezone.localdate():
+            raise bad_request("Choose today or a later date.", "date_in_past")
+        tier = d["tier"] if d["kind"] == "package" else "standard"
+        candidates = (bookable_captains().filter(city=d["city"]).order_by("-rating_avg", "-trips_completed")
+                      .prefetch_related("services", "weekly_slots"))[:40]
+        results = []
+        for captain in candidates:
+            fits = [sv for sv in captain.services.all() if sv.is_active and sv.kind == d["kind"] and sv.max_guests >= d["guests"]]
+            if not fits:
+                continue
+            best = max(fits, key=lambda sv: (sv.category in d["interests"], -sv.from_price))
+            q = pricing.quote(best, tier, d["guests"])
+            end = d["start_date"] + timedelta(days=q.days - 1)
+            reason = services.unavailable_reason(captain, d["start_date"], end)
+            cats = set(captain.categories) | {sv.category for sv in fits}
+            interest_score = len(cats & set(d["interests"])) / len(d["interests"]) if d["interests"] else 0.6
+            lang_score = 1.0 if not d["languages"] or set(captain.languages) & set(d["languages"]) else 0.0
+            budget_score = 1.0 if not d.get("budget") or q.total <= d["budget"] else 0.0
+            score = (40 * interest_score + 20 * lang_score + 22 * float(captain.rating_avg or 4) / 5
+                     + 8 * min(captain.trips_completed / 50, 1) + 10 * budget_score)
+            results.append({
+                "captain": CaptainCardSerializer(captain, context={"request": request}).data,
+                "service": {"id": best.id, "title": best.title, "kind": best.kind, "category": best.category},
+                "quote": q.as_dict(),
+                "match": min(99, round(score)),
+                "available": reason is None,
+                "unavailable_reason": reason,
+                "within_budget": bool(budget_score),
+            })
+        results.sort(key=lambda r: (not r["available"], -r["match"]))
+        return Response({"tier": tier, "results": results[:20]})
+
+
+class SavedListView(generics.ListAPIView):
+    permission_classes = [IsTraveler]
+    serializer_class = CaptainCardSerializer
+    pagination_class = None
 
     def get_queryset(self):
-        qs = CaptainProfile.objects.filter(
-            lifecycle_status=CaptainProfile.LifecycleStatus.LIVE,
-            verification_status=CaptainProfile.VerificationStatus.VERIFIED,
-        )
-        city_id = self.request.query_params.get("city")
-        if city_id:
-            qs = qs.filter(Q(home_city_id=city_id) | Q(expanded_cities__id=city_id))
-        search = self.request.query_params.get("q")
-        if search:
-            qs = qs.filter(
-                Q(business_name__icontains=search)
-                | Q(specialties__icontains=search)
-                | Q(cap_id__iexact=search)
-            )
-        return qs.distinct()
+        ids = SavedCaptain.objects.filter(traveler=self.request.user).values("captain_id")
+        return bookable_captains().filter(pk__in=ids).order_by("-rating_avg")
+
+
+class SaveToggleView(APIView):
+    permission_classes = [IsTraveler]
+
+    def post(self, request, pk):
+        captain = get_object_or_404(CaptainProfile, pk=pk)
+        SavedCaptain.objects.get_or_create(traveler=request.user, captain=captain)
+        return Response({"saved": True})
+
+    def delete(self, request, pk):
+        SavedCaptain.objects.filter(traveler=request.user, captain_id=pk).delete()
+        return Response({"saved": False})

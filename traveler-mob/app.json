@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "GoLoc",
+    "slug": "goloc-traveler",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "goloc",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F6EFE1",
+    "ios": {
+      "bundleIdentifier": "in.goloc.traveler",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GoLoc shares your location with your Captain and our safety team during a booked trip, and finds help near you in an emergency.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "Connects to the GoLoc server on your network during development."
+      },
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "in.goloc.traveler",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-video",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0E2B2C",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GoLoc shares your location with your Captain and our safety team during a booked trip, and finds help near you in an emergency."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2F7A6B"
+        }
+      ],
+      "expo-image",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

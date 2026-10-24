@@ -1,70 +1,128 @@
 from rest_framework import serializers
 
-from apps.captains.models import PricingTier, Service
-from .models import Booking, PackageBookingLineItem, Refund
+from apps.captains.models import ServiceOffer
+from apps.common.api import public_url
+
+from .models import Booking, BookingEvent
 
 
-class PackageBookingLineItemSerializer(serializers.ModelSerializer):
+def _abs(request, field):
+    if not field:
+        return None
+    return request.build_absolute_uri(field.url) if request else field.url
+
+
+class BookingListSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    captain = serializers.SerializerMethodField()
+    traveler = serializers.SerializerMethodField()
+    city_name = serializers.CharField(source="city.name", read_only=True)
+
     class Meta:
-        model = PackageBookingLineItem
-        fields = ["category", "description", "cost"]
+        model = Booking
+        fields = ["id", "code", "status", "status_label", "kind", "tier", "guests", "start_date", "end_date",
+                  "start_time", "title", "captain", "traveler", "city_name", "fare", "total", "captain_net",
+                  "request_expires_at", "payment_due_at", "created_at"]
+
+    @property
+    def role(self):
+        return self.context.get("role")
+
+    def get_title(self, obj):
+        return obj.service_snapshot.get("title") or obj.service.title
+
+    def get_captain(self, obj):
+        c = obj.captain
+        out = {"id": c.id, "code": c.code, "name": c.name, "avatar": _abs(self.context.get("request"), c.avatar)}
+        if self.role in {"admin"} or (self.role == "traveler" and obj.is_paid):
+            out["phone"] = c.user.phone_number
+        return out
+
+    def get_traveler(self, obj):
+        t = obj.traveler
+        out = {"id": t.id, "name": t.full_name or "Traveler"}
+        if self.role == "admin" or (self.role == "captain" and obj.is_paid):
+            out["phone"] = t.phone_number
+        return out
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        if self.role == "traveler":
+            data.pop("captain_net", None)
+        return data
 
 
-class RefundSerializer(serializers.ModelSerializer):
+class EventSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Refund
-        fields = ["refund_percentage", "refund_amount", "created_at"]
+        model = BookingEvent
+        fields = ["kind", "message", "actor_role", "created_at"]
 
 
-class BookingCreateSerializer(serializers.ModelSerializer):
-    """
-    Traveler-side 'Build My Trip' / booking request (Section 3.2, step 3).
-    Fare and insurance are computed server-side from the Service's
-    PricingTier — never trust a client-submitted price.
-    """
+class BookingDetailSerializer(BookingListSerializer):
+    events = EventSerializer(many=True, read_only=True)
+    actions = serializers.SerializerMethodField()
+    start_pin = serializers.SerializerMethodField()
+    share_url = serializers.SerializerMethodField()
+    review = serializers.SerializerMethodField()
+    refunded = serializers.SerializerMethodField()
+    service_id = serializers.UUIDField(source="service.id", read_only=True)
 
-    service_id = serializers.PrimaryKeyRelatedField(source="service", queryset=Service.objects.all())
-    pricing_tier_id = serializers.PrimaryKeyRelatedField(
-        source="pricing_tier", queryset=PricingTier.objects.all()
+    class Meta(BookingListSerializer.Meta):
+        fields = BookingListSerializer.Meta.fields + [
+            "service_id", "meeting_point", "note", "service_snapshot", "insurance_fee", "insurance_policy_no", "commission",
+            "cancelled_by", "cancel_reason", "refund_percent", "refunded", "accepted_at", "confirmed_at", "started_at",
+            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "events", "actions",
+        ]
+
+    def get_start_pin(self, obj):
+        return obj.start_pin if self.role == "traveler" and obj.status == Booking.Status.CONFIRMED else None
+
+    def get_share_url(self, obj):
+        if self.role == "traveler" and obj.status in {Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS}:
+            return public_url(self.context.get("request"), f"/t/{obj.share_token}/")
+        return None
+
+    def get_review(self, obj):
+        review = getattr(obj, "review", None)
+        if review is None:
+            return None
+        return {"rating": review.rating, "comment": review.comment, "captain_reply": review.captain_reply}
+
+    def get_refunded(self, obj):
+        return sum(r.amount for r in obj.refunds.all() if r.status == "processed")
+
+    def get_actions(self, obj):
+        S = Booking.Status
+        s = obj.status
+        if self.role == "captain":
+            return {
+                "accept": s == S.REQUESTED, "decline": s == S.REQUESTED, "cancel": s in (S.ACCEPTED, S.CONFIRMED),
+                "start": s == S.CONFIRMED, "complete": s == S.IN_PROGRESS, "track": s in (S.CONFIRMED, S.IN_PROGRESS),
+                "message": True,
+            }
+        if self.role == "traveler":
+            return {
+                "pay": s == S.ACCEPTED, "cancel": s in (S.REQUESTED, S.ACCEPTED, S.CONFIRMED),
+                "track": s in (S.CONFIRMED, S.IN_PROGRESS), "sos": s in (S.CONFIRMED, S.IN_PROGRESS),
+                "review": s == S.COMPLETED and getattr(obj, "review", None) is None, "message": True,
+            }
+        return {}
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        if self.role != "admin":
+            data.pop("commission", None)
+        return data
+
+
+class BookingCreateSerializer(serializers.Serializer):
+    service_id = serializers.PrimaryKeyRelatedField(
+        queryset=ServiceOffer.objects.select_related("captain__user", "captain__city"), source="service"
     )
-
-    class Meta:
-        model = Booking
-        fields = [
-            "id", "bkg_id", "service_id", "pricing_tier_id", "pax_count",
-            "trip_start_date", "trip_end_date", "status",
-        ]
-        read_only_fields = ["id", "bkg_id", "status"]
-
-    INSURANCE_RATE = 0.02  # per-booking insurance premium, illustrative (BR-6)
-
-    def create(self, validated_data):
-        pricing_tier = validated_data["pricing_tier"]
-        pax_count = validated_data["pax_count"]
-        fare = pricing_tier.price_per_person * pax_count
-
-        booking = Booking.objects.create(
-            traveler=self.context["request"].user,
-            captain=pricing_tier.service.captain,
-            fare_amount=fare,
-            insurance_amount=round(fare * self.INSURANCE_RATE, 2),
-            **validated_data,
-        )
-        return booking
-
-
-class BookingSerializer(serializers.ModelSerializer):
-    package_line_items = PackageBookingLineItemSerializer(many=True, read_only=True)
-    refund = RefundSerializer(read_only=True)
-    captain_cap_id = serializers.CharField(source="captain.cap_id", read_only=True)
-
-    class Meta:
-        model = Booking
-        fields = [
-            "id", "bkg_id", "traveler", "captain", "captain_cap_id", "service", "pricing_tier",
-            "pax_count", "trip_start_date", "trip_end_date", "fare_amount", "insurance_amount",
-            "tip_amount", "total_amount", "commission_amount", "captain_net_amount",
-            "status", "sos_active", "insurance_active", "package_line_items", "refund",
-            "created_at", "paid_at", "completed_at", "cancelled_at",
-        ]
-        read_only_fields = fields
+    tier = serializers.ChoiceField(choices=["standard", "normal", "medium", "lavish"], required=False, default="standard")
+    guests = serializers.IntegerField(min_value=1, max_value=20)
+    start_date = serializers.DateField()
+    start_time = serializers.TimeField(required=False, allow_null=True)
+    meeting_point = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    note = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")

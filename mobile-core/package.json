@@ -1,0 +1,92 @@
+{
+  "name": "@goloc/core",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*",
+    "expo": "*",
+    "expo-router": "*",
+    "expo-secure-store": "*",
+    "expo-image": "*",
+    "expo-location": "*",
+    "expo-notifications": "*",
+    "expo-device": "*",
+    "expo-haptics": "*",
+    "expo-font": "*",
+    "expo-splash-screen": "*",
+    "expo-constants": "*",
+    "expo-status-bar": "*",
+    "react-native-webview": "*",
+    "react-native-safe-area-context": "*",
+    "@expo/vector-icons": "*",
+    "@expo-google-fonts/fraunces": "*",
+    "@expo-google-fonts/manrope": "*"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.66.0",
+    "axios": "^1.7.9",
+    "zustand": "^5.0.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "expo": {
+      "optional": true
+    },
+    "expo-router": {
+      "optional": true
+    },
+    "expo-secure-store": {
+      "optional": true
+    },
+    "expo-image": {
+      "optional": true
+    },
+    "expo-location": {
+      "optional": true
+    },
+    "expo-notifications": {
+      "optional": true
+    },
+    "expo-device": {
+      "optional": true
+    },
+    "expo-haptics": {
+      "optional": true
+    },
+    "expo-font": {
+      "optional": true
+    },
+    "expo-splash-screen": {
+      "optional": true
+    },
+    "expo-constants": {
+      "optional": true
+    },
+    "expo-status-bar": {
+      "optional": true
+    },
+    "react-native-webview": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    },
+    "@expo/vector-icons": {
+      "optional": true
+    },
+    "@expo-google-fonts/fraunces": {
+      "optional": true
+    },
+    "@expo-google-fonts/manrope": {
+      "optional": true
+    }
+  }
+}

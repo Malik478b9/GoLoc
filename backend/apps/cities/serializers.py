@@ -6,4 +6,5 @@ from .models import City
 class CitySerializer(serializers.ModelSerializer):
     class Meta:
         model = City
-        fields = ["id", "name", "state", "is_live", "latitude", "longitude", "launch_phase"]
+        fields = ["id", "name", "slug", "state", "latitude", "longitude"]
+        read_only_fields = fields

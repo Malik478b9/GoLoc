@@ -1,0 +1,64 @@
+/* Shared nav controls (city picker, account menu). Accent comes from --gl-accent on the page root. */
+.gl-pop-anchor { position: relative; }
+
+.gl-city-btn {
+  display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700;
+  padding: 8px 18px 8px 4px; border-right: 1px solid rgba(246,239,225,0.15);
+  background: none; border-top: none; border-bottom: none; border-left: none; color: inherit; cursor: pointer;
+}
+.gl-city-btn svg { width: 15px; height: 15px; color: var(--gl-accent); display: block; }
+.gl-city-btn .gl-chev { color: rgba(246,239,225,0.5); font-size: 11px; }
+.gl-city-btn.unset span:first-of-type { color: var(--gl-accent); }
+.gl-city-btn:hover span:first-of-type { text-decoration: underline; text-underline-offset: 3px; }
+
+.gl-account-btn { display: flex; align-items: center; gap: 10px; background: none; border: none; color: inherit; cursor: pointer; padding: 0; font: inherit; }
+.gl-avatar {
+  width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--gl-avatar-bg, var(--gl-accent)); color: #fff; font-size: 14px; font-weight: 700; flex: none;
+}
+.gl-avatar.lg { width: 44px; height: 44px; font-size: 18px; }
+.gl-account-name { font-size: 13.5px; font-weight: 700; }
+
+.gl-pop {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 50;
+  background: #fff; color: #12211F; border-radius: 14px; min-width: 260px;
+  box-shadow: 0 18px 50px rgba(14, 43, 44, 0.25), 0 0 0 1px rgba(18, 33, 31, 0.08);
+  padding: 8px; text-align: left; font-size: 14px;
+}
+.gl-city-pop { right: auto; left: 0; width: 300px; }
+.gl-pop-title { font-size: 12px; font-weight: 700; color: #8A7F6B; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 10px 8px; }
+.gl-pop-search {
+  width: 100%; margin: 0 0 6px; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(18,33,31,0.15);
+  background: #FBF8F1; color: #12211F; font-size: 14px;
+}
+.gl-pop-search::placeholder { color: #8A7F6B; }
+.gl-pop-msg { padding: 12px 10px; color: #5b5446; line-height: 1.4; }
+.gl-pop-error { padding: 8px 10px; color: #b42318; font-size: 13px; }
+.gl-link { background: none; border: none; color: var(--gl-accent-deep, var(--gl-accent)); font-weight: 700; cursor: pointer; padding: 0; }
+
+.gl-city-list { list-style: none; max-height: 320px; overflow-y: auto; margin: 0; padding: 0; }
+.gl-city-list button {
+  width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 10px; border-radius: 9px; background: none; border: none; cursor: pointer; color: inherit; font: inherit;
+}
+.gl-city-list button:hover:not(:disabled) { background: #F6EFE1; }
+.gl-city-list button.selected { background: #F6EFE1; }
+.gl-city-list button.selected .gl-city-name::after { content: " ✓"; color: var(--gl-accent-deep, var(--gl-accent)); }
+.gl-city-list button:disabled { cursor: wait; }
+.gl-city-name { font-weight: 700; }
+.gl-city-state { font-size: 12.5px; color: #8A7F6B; }
+
+.gl-account-head { display: flex; gap: 12px; align-items: center; padding: 10px 10px 14px; border-bottom: 1px solid rgba(18,33,31,0.1); margin-bottom: 6px; }
+.gl-account-full { font-weight: 700; }
+.gl-account-phone { font-size: 13px; color: #5b5446; margin-top: 2px; }
+.gl-account-role { font-size: 12px; color: var(--gl-accent-deep, var(--gl-accent)); font-weight: 700; margin-top: 4px; }
+.gl-menu-item { width: 100%; text-align: left; padding: 10px; border-radius: 9px; background: none; border: none; cursor: pointer; font: inherit; color: inherit; }
+.gl-menu-item:hover:not(:disabled) { background: #F6EFE1; }
+.gl-menu-item.danger { color: #b42318; font-weight: 700; }
+.gl-menu-item:disabled { opacity: 0.6; cursor: wait; }
+
+@media (max-width: 640px) {
+  .gl-account-name { display: none; }
+  .gl-city-pop { position: fixed; top: 72px; left: 16px; right: 16px; width: auto; }
+  .gl-account-pop { position: fixed; top: 72px; right: 16px; left: 16px; }
+}

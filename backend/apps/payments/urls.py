@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import webhooks
-from .views import CreateCheckoutOrderView, MyPayoutLedgerView
+from . import views
 
 urlpatterns = [
-    path("checkout/", CreateCheckoutOrderView.as_view(), name="create-checkout-order"),
-    path("payouts/me/", MyPayoutLedgerView.as_view(), name="my-payout-ledger"),
-    path("webhooks/razorpay/", webhooks.razorpay_webhook, name="razorpay-webhook"),
+    path("bookings/<str:ref>/order/", views.CreateOrderView.as_view(), name="payment-order"),
+    path("verify/", views.VerifyView.as_view(), name="payment-verify"),
+    path("webhooks/razorpay/", views.RazorpayWebhookView.as_view(), name="razorpay-webhook"),
+    path("wallet/", views.WalletView.as_view(), name="captain-wallet"),
+    path("wallet/monthly/", views.EarningsByMonthView.as_view(), name="captain-wallet-monthly"),
+    path("payouts/", views.RequestPayoutView.as_view(), name="captain-payout-request"),
+]
+
+page_urlpatterns = [
+    path("checkout/<str:token>/", views.checkout_page, name="pay-checkout"),
+    path("result/", views.result_page, name="pay-result"),
 ]
