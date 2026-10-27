@@ -49,9 +49,10 @@ def _is_admin_number(phone_number: str) -> bool:
 
 class RequestOTPView(APIView):
     """
-    POST /api/v1/auth/otp/request/   {"phone_number": "9876543210", "role": "traveler"}
+    POST /api/v1/auth/otp/request/   {"phone_number": "9876543210", "role": "traveler", "intent": "signin"|"signup"}
 
-    200 {"detail", "phone_number", "expires_in", "resend_in"[, "dev_code"]}
+    200 {"detail", "phone_number", "expires_in", "resend_in", "is_new"[, "dev_code"]}
+    404 {"code": "account_not_found"}   intent=signin and no account for this number
     429 {"code": "otp_cooldown" | "otp_rate_limited", "retry_after"}
     503 {"code": "otp_delivery_failed"}
     """
@@ -65,6 +66,14 @@ class RequestOTPView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone_number"]
         role = serializer.validated_data.get("role")
+        intent = serializer.validated_data.get("intent")
+
+        exists = None
+        if role != User.Role.ADMIN:
+            exists = User.objects.filter(phone_number=phone).exists()
+            if intent == "signin" and not exists:
+                return error_response("No GoLoc account uses this number yet. Create one to get started.",
+                                      "account_not_found", status.HTTP_404_NOT_FOUND)
 
         # Admin console: only real admins get an SMS. Everyone else gets the
         # same-looking response so the endpoint can't be used to discover
@@ -82,6 +91,8 @@ class RequestOTPView(APIView):
             "expires_in": sent.expires_in,
             "resend_in": sent.resend_in,
         }
+        if exists is not None:
+            body["is_new"] = not exists
         if sent.dev_code:
             body["dev_code"] = sent.dev_code  # DEBUG builds only
         return Response(body)
@@ -105,6 +116,12 @@ class VerifyOTPView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         phone, role = data["phone_number"], data["role"]
+
+        # Checked before the code is used up, so a missing name doesn't cost the traveler their OTP.
+        if (role != User.Role.ADMIN and len(data.get("full_name", "")) < 2
+                and not User.objects.filter(phone_number=phone).exists()):
+            return error_response("Tell us your name to create your account.", "name_required",
+                                  status.HTTP_400_BAD_REQUEST)
 
         try:
             verify_otp(phone, data["code"])

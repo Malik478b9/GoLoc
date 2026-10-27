@@ -4,7 +4,7 @@ import { openPrivateFile, post } from "../api/client";
 import { ago, Badge, Empty, ErrorBox, Loading, Modal, money, Page, Pager, title, toastError, useAction, useApi } from "./lib";
 
 type Row = {
-  id: string; code: string; name: string; phone: string; avatar: string | null; city_name: string; review_status: string; is_live: boolean;
+  id: string; code: string; name: string; phone: string; avatar: string | null; city_name: string; captain_type: "captain" | "guide"; review_status: string; is_live: boolean;
   is_on_hold: boolean; is_featured: boolean; rating_avg: string; rating_count: number; trips_completed: number; submitted_at: string | null;
   last_active_at: string; created_at: string;
 };
@@ -49,7 +49,7 @@ export function CaptainList() {
               <div className="avatar">{c.avatar ? <img src={c.avatar} alt="" /> : c.name.slice(0, 1)}</div>
               <div className="grow">
                 <b>{c.name}</b> <span className="mono">{c.code}</span>
-                <div className="muted">{c.city_name} · {c.phone} · {c.trips_completed} trips · ★ {Number(c.rating_avg).toFixed(1)}</div>
+                <div className="muted">{c.captain_type === "guide" ? "Guide" : "Captain"} · {c.city_name} · {c.phone} · {c.trips_completed} trips · ★ {Number(c.rating_avg).toFixed(1)}</div>
               </div>
               <div className="right">
                 <Badge s={c.review_status} />
@@ -92,7 +92,7 @@ export function CaptainDetail({ id }: { id: string }) {
           <div>
             <div className="eyebrow mono">{c.code}</div>
             <h1>{c.name}</h1>
-            <div className="muted">{c.city_name} · {c.phone} · joined {ago(c.created_at)}</div>
+            <div className="muted">{c.captain_type === "guide" ? "Local guide" : "Captain · full service"} · {c.city_name} · {c.phone} · joined {ago(c.created_at)}</div>
             <div className="row gap-s" style={{ marginTop: 6 }}>
               <Badge s={c.review_status} />
               {c.is_live ? <Badge s="in_progress" label="Live" /> : <Badge s="draft" label="Offline" />}
@@ -163,8 +163,8 @@ export function CaptainDetail({ id }: { id: string }) {
           <div className="card-head"><h3>Services</h3></div>
           {c.services.map((s) => (
             <div key={s.id} className="list-row static">
-              <div className="grow"><b>{s.title}</b><div className="muted small">{title(s.category)} · {s.kind === "package" ? `${s.duration_days} days` : `${s.duration_hours} h`}</div></div>
-              <div className="right">{s.kind === "package" ? `${money(s.normal_price)} / ${money(s.medium_price)} / ${money(s.lavish_price)} pp` : money(s.price)}</div>
+              <div className="grow"><b>{s.title}</b><div className="muted small">{title(s.category)} · {s.kind === "package" ? `${s.duration_days} days` : s.kind === "guide" ? `guide · ${s.duration_hours} h/day` : `${s.duration_hours} h`}</div></div>
+              <div className="right">{s.kind === "package" ? `${money(s.normal_price)} / ${money(s.medium_price)} / ${money(s.lavish_price)} pp` : s.kind === "guide" ? `${money(s.price)} / day` : money(s.price)}</div>
             </div>
           ))}
           {c.vehicles.map((v) => (

@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, assetPart, Button, Chip, COMPATIBLE, Field, filePart, palette, radius, Row, Screen, Service, space, T, toast, toastError } from "@goloc/core";
+import {
+  AIField, api, assetPart, Button, Chip, COMPATIBLE, filePart, palette, radius, Row, Screen, Service, space, T, toast, toastError,
+} from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -40,8 +42,8 @@ export default function NewPost() {
     if (!picked) return;
     const form = new FormData();
     form.append("kind", picked.kind);
-    form.append("media", assetPart(picked.uri, picked.kind === "reel" ? "reel.mp4" : "photo.jpg"));
-    if (picked.thumb) form.append("thumbnail", filePart(picked.thumb, "thumb.jpg", "image/jpeg"));
+    form.append("media", await assetPart(picked.uri, picked.kind === "reel" ? "reel.mp4" : "photo.jpg"));
+    if (picked.thumb) form.append("thumbnail", await filePart(picked.thumb, "thumb.jpg", "image/jpeg"));
     form.append("caption", caption.trim());
     if (serviceId) form.append("service_id", serviceId);
     setProgress(0);
@@ -79,7 +81,7 @@ export default function NewPost() {
       </Pressable>
       {picked ? <Button title="Choose another" kind="ghost" small onPress={pick} style={{ alignSelf: "center", marginTop: 6 }} /> : null}
 
-      <Field label="Caption" multiline value={caption} onChangeText={setCaption} maxLength={500} placeholder="Sunrise at Pangong · we leave at 4:30 AM ☀️" style={{ minHeight: 70 }} />
+      <AIField purpose="post_caption" label="Caption" multiline value={caption} onChangeText={setCaption} maxLength={500} placeholder="Sunrise at Pangong · we leave at 4:30 AM ☀️" style={{ minHeight: 70 }} />
       {(services.data ?? []).length ? (
         <>
           <T variant="small" style={{ marginBottom: 8, fontWeight: "700" }}>Link a trip (adds a "Book your trip" button)</T>

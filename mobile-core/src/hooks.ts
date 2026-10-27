@@ -16,14 +16,14 @@ const IN_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.Store
 let notifications: NotificationsModule | null | undefined;
 
 /**
- * expo-notifications is loaded lazily and never inside Expo Go: Expo Go no
+ * expo-notifications is loaded lazily and never inside Expo Go or a browser: Expo Go no
  * longer ships its native part, and importing it there crashes the whole app
  * at startup ("Cannot find native module 'ExpoTopicSubscriptionModule'").
  */
 function loadNotifications(): NotificationsModule | null {
   if (notifications !== undefined) return notifications;
   notifications = null;
-  if (IN_EXPO_GO) return null;
+  if (IN_EXPO_GO || Platform.OS === "web") return null;
   try {
     const N: NotificationsModule = require("expo-notifications");
     N.setNotificationHandler({

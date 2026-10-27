@@ -1,5 +1,7 @@
 from django.urls import path
 
+from apps.itineraries import views as itinerary_views
+
 from . import views
 
 # /api/v1/captain/ — the signed-in Captain's own business
@@ -21,6 +23,11 @@ captain_urlpatterns = [
     path("availability/blocked/", views.BlockedDateView.as_view(), name="captain-blocked"),
     path("availability/blocked/<int:pk>/", views.BlockedDateView.as_view(), name="captain-blocked-delete"),
     path("payout-account/", views.PayoutAccountView.as_view(), name="captain-payout-account"),
+    path("itineraries/", itinerary_views.ItineraryListView.as_view(), name="captain-itineraries"),
+    path("itineraries/<uuid:pk>/", itinerary_views.ItineraryDetailView.as_view(), name="captain-itinerary"),
+    path("itineraries/<uuid:pk>/generate/", itinerary_views.GenerateView.as_view(), name="captain-itinerary-generate"),
+    path("itineraries/<uuid:pk>/publish/", itinerary_views.PublishView.as_view(), name="captain-itinerary-publish"),
+    path("itineraries/<uuid:pk>/days/<int:day>/rewrite/", itinerary_views.RewriteDayView.as_view(), name="captain-itinerary-day"),
 ]
 
 # /api/v1/captains/ — public discovery for travelers
@@ -33,4 +40,5 @@ public_urlpatterns = [
     path("<uuid:pk>/save/", views.SaveToggleView.as_view(), name="captain-save"),
     path("<str:id_or_code>/", views.CaptainDetailView.as_view(), name="captain-detail"),
     path("<str:id_or_code>/calendar/", views.CaptainCalendarView.as_view(), name="captain-calendar"),
+    path("<str:id_or_code>/itineraries/", itinerary_views.CaptainItinerariesView.as_view(), name="captain-itineraries-public"),
 ]

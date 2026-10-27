@@ -49,6 +49,8 @@ class OptionsView(APIView):
             "categories": CATEGORIES,
             "document_types": [{"value": v, "label": l} for v, l in VerificationDocument.DocType.choices],
             "vehicle_kinds": [{"value": v, "label": l} for v, l in Vehicle.Kind.choices],
+            "captain_types": [{"value": v, "label": l} for v, l in CaptainProfile.Type.choices],
+            "guide_max_days": settings.GUIDE_MAX_DAYS,
             "refund_schedule": pricing.refund_schedule_for_display(),
         })
 
@@ -150,6 +152,12 @@ class ServiceListView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return ServiceOffer.objects.filter(captain__user=self.request.user)
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        if self.request.method == "POST":
+            ctx["captain"] = my_profile(self.request)
+        return ctx
 
     def perform_create(self, serializer):
         profile = my_profile(self.request)
@@ -333,7 +341,7 @@ class DashboardView(APIView):
 # ================================================================ public discovery
 def bookable_captains():
     active = ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True)
-    price = active.annotate(p=Case(When(kind="experience", then=F("price")), default=F("normal_price"),
+    price = active.annotate(p=Case(When(kind="package", then=F("normal_price")), default=F("price"),
                                    output_field=IntegerField())).order_by("p").values("p")[:1]
     return (
         CaptainProfile.objects.filter(is_live=True, is_on_hold=False, review_status=CaptainProfile.ReviewStatus.APPROVED,
@@ -341,7 +349,8 @@ def bookable_captains():
         .filter(Exists(active))
         .select_related("user", "city")
         .annotate(from_price=Subquery(price, output_field=IntegerField()),
-                  has_package=Exists(active.filter(kind="package")))
+                  has_package=Exists(active.filter(kind="package")),
+                  has_guide=Exists(active.filter(kind="guide")))
     )
 
 
@@ -353,7 +362,8 @@ def _saved_ids(request, ids):
 
 class DiscoveryView(generics.ListAPIView):
     """
-    GET /captains/?city=hyderabad&category=food&kind=package&language=Hindi&q=…&sort=rating|price_low|price_high|trips
+    GET /captains/?city=hyderabad&category=food&kind=package|experience|guide&type=captain|guide&language=Hindi&q=…
+                  &sort=rating|price_low|price_high|trips
     Public. Cached briefly per query since it's the hottest read in the app.
     """
 
@@ -368,8 +378,10 @@ class DiscoveryView(generics.ListAPIView):
         if p.get("category"):
             qs = qs.filter(Q(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, category=p["category"])))
                            | Q(categories__icontains=f'"{p["category"]}"'))
-        if p.get("kind") in {"experience", "package"}:
+        if p.get("kind") in ServiceOffer.Kind.values:
             qs = qs.filter(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, kind=p["kind"])))
+        if p.get("type") in CaptainProfile.Type.values:
+            qs = qs.filter(captain_type=p["type"])
         if p.get("language"):
             qs = qs.filter(languages__icontains=f'"{p["language"][:30]}"')
         q = p.get("q", "").strip()[:60]
@@ -433,6 +445,10 @@ class CaptainDetailView(APIView):
         data["posts"] = PostSerializer(posts, many=True, context={"request": request}).data
         data["reviews"] = PublicReviewSerializer(reviews, many=True).data
         data["saved"] = bool(_saved_ids(request, [captain.pk]))
+        from apps.itineraries.serializers import ItinerarySummarySerializer
+
+        itineraries = captain.itineraries.filter(kind="template", is_published=True, status="ready")[:10]
+        data["itineraries"] = ItinerarySummarySerializer(itineraries, many=True, context={"request": request}).data
         return Response(data)
 
 
@@ -468,8 +484,23 @@ class CaptainCalendarView(APIView):
         return Response({"from": start, "to": end, "unavailable": services.booked_dates(captain, start, end)})
 
 
+def _trip_days(data, service):
+    """Days for a quote: guide hire counts arrival → return; everything else has a fixed length."""
+    if service.kind != "guide":
+        return None
+    try:
+        start = serializers.DateField().to_internal_value(data.get("start_date"))
+        end = serializers.DateField().to_internal_value(data.get("end_date") or data.get("start_date"))
+    except serializers.ValidationError:
+        return 1
+    days = (end - start).days + 1
+    if not 1 <= days <= settings.GUIDE_MAX_DAYS:
+        raise bad_request(f"Choose a return date within {settings.GUIDE_MAX_DAYS} days of arrival.", "invalid_dates")
+    return days
+
+
 class QuoteView(APIView):
-    """POST /captains/quote/ {service_id, tier, guests} → price breakdown before booking."""
+    """POST /captains/quote/ {service_id, tier, guests, start_date?, end_date?} → price breakdown before booking."""
 
     permission_classes = [AllowAny]
 
@@ -484,14 +515,16 @@ class QuoteView(APIView):
             raise bad_request(f"Choose 1–{service.max_guests} guests.", "invalid_guests")
         if service.kind == "package" and tier not in {"normal", "medium", "lavish"}:
             raise bad_request("Choose Normal, Medium or Lavish.", "tier_required")
-        return Response({**pricing.quote(service, tier, guests).as_dict(), "tier": tier, "guests": guests})
+        return Response({**pricing.quote(service, tier, guests, _trip_days(request.data, service)).as_dict(),
+                         "tier": tier, "guests": guests})
 
 
 class MatchSerializer(serializers.Serializer):
     city = serializers.SlugRelatedField(slug_field="slug", queryset=City.objects.filter(is_live=True))
     start_date = serializers.DateField()
+    end_date = serializers.DateField(required=False, allow_null=True)
     guests = serializers.IntegerField(min_value=1, max_value=20)
-    kind = serializers.ChoiceField(choices=["experience", "package"])
+    kind = serializers.ChoiceField(choices=ServiceOffer.Kind.values)
     tier = serializers.ChoiceField(choices=["normal", "medium", "lavish"], required=False, default="medium")
     interests = serializers.ListField(child=serializers.ChoiceField(choices=CATEGORIES), required=False, default=list, max_length=8)
     languages = serializers.ListField(child=serializers.CharField(max_length=30), required=False, default=list, max_length=5)
@@ -513,15 +546,23 @@ class MatchView(APIView):
         if d["start_date"] < timezone.localdate():
             raise bad_request("Choose today or a later date.", "date_in_past")
         tier = d["tier"] if d["kind"] == "package" else "standard"
+        end_date = d.get("end_date") or d["start_date"]
+        if end_date < d["start_date"]:
+            raise bad_request("Your return date must be on or after your arrival date.", "dates_reversed")
+        trip_days = (end_date - d["start_date"]).days + 1
+        if d["kind"] == "guide" and trip_days > settings.GUIDE_MAX_DAYS:
+            raise bad_request(f"A guide can be booked for up to {settings.GUIDE_MAX_DAYS} days at a time.", "too_many_days")
         candidates = (bookable_captains().filter(city=d["city"]).order_by("-rating_avg", "-trips_completed")
                       .prefetch_related("services", "weekly_slots"))[:40]
         results = []
         for captain in candidates:
-            fits = [sv for sv in captain.services.all() if sv.is_active and sv.kind == d["kind"] and sv.max_guests >= d["guests"]]
+            fits = [sv for sv in captain.services.all() if sv.is_active and sv.kind == d["kind"] and sv.max_guests >= d["guests"]
+                    # a package must fit between the traveler's arrival and return
+                    and not (sv.kind == "package" and d.get("end_date") and sv.duration_days > trip_days)]
             if not fits:
                 continue
             best = max(fits, key=lambda sv: (sv.category in d["interests"], -sv.from_price))
-            q = pricing.quote(best, tier, d["guests"])
+            q = pricing.quote(best, tier, d["guests"], trip_days)
             end = d["start_date"] + timedelta(days=q.days - 1)
             reason = services.unavailable_reason(captain, d["start_date"], end)
             cats = set(captain.categories) | {sv.category for sv in fits}

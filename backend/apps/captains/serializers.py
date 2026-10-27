@@ -58,9 +58,16 @@ class ServiceSerializer(serializers.ModelSerializer):
         kind = get("kind") or ServiceOffer.Kind.EXPERIENCE
         if self.instance and "kind" in attrs and attrs["kind"] != self.instance.kind:
             raise serializers.ValidationError({"kind": "Create a new service to change its type."})
+        captain = self.context.get("captain") or getattr(self.instance, "captain", None)
+        if kind == ServiceOffer.Kind.PACKAGE and captain and captain.captain_type == CaptainProfile.Type.GUIDE:
+            raise serializers.ValidationError(
+                {"kind": "Guides offer day experiences and guide-by-the-day. Switch to Captain to sell full packages."})
         if kind == ServiceOffer.Kind.EXPERIENCE:
             if not get("price"):
                 raise serializers.ValidationError({"price": "Set a price for this experience."})
+        elif kind == ServiceOffer.Kind.GUIDE:
+            if not get("price"):
+                raise serializers.ValidationError({"price": "Set your price per day."})
         else:
             n, m, lv = get("normal_price") or 0, get("medium_price") or 0, get("lavish_price") or 0
             if not n or not m or not lv:
@@ -150,7 +157,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CaptainProfile
-        fields = ["id", "code", "full_name", "city_id", "city_name", "tagline", "bio", "avatar", "years_experience",
+        fields = ["id", "code", "full_name", "city_id", "city_name", "captain_type", "tagline", "bio", "avatar", "years_experience",
                   "languages", "categories", "max_bookings_per_day", "review_status", "review_note", "submitted_at",
                   "is_live", "is_on_hold", "hold_reason", "rating_avg", "rating_count", "trips_completed", "profile_views"]
         read_only_fields = ["id", "code", "avatar", "review_status", "review_note", "submitted_at", "is_live", "is_on_hold",
@@ -161,6 +168,12 @@ class MyProfileSerializer(serializers.ModelSerializer):
 
     def validate_categories(self, value):
         return _clean_list(value, CATEGORIES, "Categories", 6)
+
+    def validate_captain_type(self, value):
+        if (self.instance and value == CaptainProfile.Type.GUIDE
+                and self.instance.services.filter(kind=ServiceOffer.Kind.PACKAGE, is_active=True).exists()):
+            raise serializers.ValidationError("Pause your full-service packages before switching to Guide.")
+        return value
 
     def validate_city_id(self, city):
         # BR-1: a Captain operates in one city; only Admin can move them once approved.
@@ -183,12 +196,14 @@ class CaptainCardSerializer(serializers.ModelSerializer):
     city_slug = serializers.CharField(source="city.slug", read_only=True)
     from_price = serializers.IntegerField(read_only=True, default=None)
     has_package = serializers.BooleanField(read_only=True, default=False)
+    has_guide = serializers.BooleanField(read_only=True, default=False)
+    captain_type_label = serializers.CharField(source="get_captain_type_display", read_only=True)
 
     class Meta:
         model = CaptainProfile
-        fields = ["id", "code", "name", "avatar", "tagline", "city_name", "city_slug", "languages", "categories",
-                  "years_experience", "rating_avg", "rating_count", "trips_completed", "is_featured", "from_price",
-                  "has_package"]
+        fields = ["id", "code", "name", "avatar", "tagline", "captain_type", "captain_type_label", "city_name", "city_slug",
+                  "languages", "categories", "years_experience", "rating_avg", "rating_count", "trips_completed",
+                  "is_featured", "from_price", "has_package", "has_guide"]
 
 
 class PublicServiceSerializer(serializers.ModelSerializer):

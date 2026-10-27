@@ -165,3 +165,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
 });
+
+/** Actual rendered width of a container (grids on desktop can't use the window width). */
+export function useMeasuredWidth(initial: number): [number, (e: { nativeEvent: { layout: { width: number } } }) => void] {
+  const [width, setWidth] = useState(initial);
+  return [width, (e) => setWidth((w) => (Math.abs(w - e.nativeEvent.layout.width) > 1 ? e.nativeEvent.layout.width : w))];
+}

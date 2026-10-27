@@ -64,7 +64,7 @@ export default function Discover() {
           <Pressable onPress={() => router.push("/build-trip")} style={styles.buildCard}>
             <View style={{ flex: 1 }}>
               <T variant="h2" color={palette.white}>Build my trip</T>
-              <T variant="small" color="#D6E6E1" style={{ marginTop: 2 }}>Day experience or full package — Normal, Medium or Lavish. We match you with Captains.</T>
+              <T variant="small" color="#D6E6E1" style={{ marginTop: 2 }}>Hire a Captain who does everything, or plan it yourself with a local guide. Pick your arrival and return; we find your match.</T>
             </View>
             <View style={styles.buildArrow}><Ionicons name="arrow-forward" size={20} color={palette.night} /></View>
           </Pressable>

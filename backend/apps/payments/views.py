@@ -179,7 +179,12 @@ def result_page(request):
            "cancelled": ("Payment cancelled", "You can try again from the app."),
            "failed": ("Payment failed", "No money was taken. Try again.")}.get(state, ("Something went wrong", "Check your booking in the app."))
     body = f"<h1>{msg[0]}</h1><p class='muted'>{msg[1]}</p>"
-    return HttpResponse(PAGE.format(body=body, script="", token='""', result='""', verify='""'))
+    # Desktop app opened checkout in a popup: tell it how it ended, then close.
+    # (Phones detect this URL in their WebView instead.) The status is whitelisted.
+    status = state if state in {"success", "cancelled", "failed"} else "error"
+    script = (f"if(window.opener){{window.opener.postMessage({{goloc:'pay',status:{json.dumps(status)}}},'*');"
+              "setTimeout(function(){window.close()},1500)}")
+    return HttpResponse(PAGE.format(body=body, script=script, token='""', result='""', verify='""'))
 
 
 # ---------------------------------------------------------------- captain wallet

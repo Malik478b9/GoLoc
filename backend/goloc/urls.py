@@ -6,6 +6,7 @@ from django.urls import include, path
 from django.views.static import serve
 
 from apps.captains.urls import captain_urlpatterns, public_urlpatterns
+from apps.itineraries.views import PublicItineraryView, document_page, poster_page
 from apps.payments.urls import page_urlpatterns as pay_pages
 from apps.trips.views import share_page
 
@@ -38,6 +39,8 @@ api = [
     path("notifications/", include("apps.notifications.urls")),
     path("support/", include("apps.support.urls")),
     path("admin/", include("apps.adminops.urls")),
+    path("itineraries/<uuid:pk>/", PublicItineraryView.as_view(), name="itinerary-public"),
+    path("ai/", include("apps.assist.urls")),
 ]
 
 urlpatterns = [
@@ -45,6 +48,8 @@ urlpatterns = [
     path("api/v1/", include(api)),
     path("pay/", include(pay_pages)),
     path("t/<str:token>/", share_page, name="trip-share-page"),
+    path("i/<str:token>/", document_page, name="itinerary-page"),
+    path("i/<str:token>/poster/", poster_page, name="itinerary-poster-page"),
 ]
 
 if settings.DEBUG or settings.STORAGES["default"]["BACKEND"].endswith("FileSystemStorage"):

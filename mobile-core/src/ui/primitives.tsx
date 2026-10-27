@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import React, { createContext, useContext } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   PressableProps,
   StyleProp,
@@ -14,6 +15,7 @@ import {
   View,
   ViewProps,
   ViewStyle,
+  useWindowDimensions,
 } from "react-native";
 
 import type { BookingStatus } from "../api/types";
@@ -21,6 +23,11 @@ import { initials, STATUS_STYLE } from "../format";
 import { Accent, accents, fonts, palette, radius, shadow, space } from "../theme";
 
 export const AccentContext = createContext<Accent>(accents.traveler);
+
+/** Desktop/tablet layout (sidebar, centred content, dialogs instead of bottom sheets). */
+export const WIDE_BREAKPOINT = 900;
+export const MAX_CONTENT_WIDTH = 1120;
+export const useWide = () => useWindowDimensions().width >= WIDE_BREAKPOINT;
 export const useAccent = () => useContext(AccentContext);
 
 // ---------------------------------------------------------------- text
@@ -53,7 +60,7 @@ export function Card({ style, children, onPress, padded = true, ...rest }: ViewP
   const content = <View style={[styles.card, padded && { padding: space.lg }, style]} {...rest}>{children}</View>;
   if (!onPress) return content;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.995 }] }]}>
+    <Pressable onPress={onPress} style={(s: any) => [s.hovered && { opacity: 0.94 }, s.pressed && { opacity: 0.9, transform: [{ scale: 0.995 }] }]}>
       {content}
     </Pressable>
   );
@@ -94,12 +101,14 @@ export function Button({
         if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress?.();
       }}
-      style={({ pressed }) => [
+      style={(s: any) => [
         styles.btn,
+        Platform.OS === "web" && ({ cursor: off ? "not-allowed" : "pointer" } as any),
         small && styles.btnSmall,
         { backgroundColor: bg },
         kind === "secondary" && { borderWidth: 1, borderColor: palette.lineStrong },
-        pressed && { opacity: 0.85 },
+        s.hovered && !off && { opacity: 0.9 },
+        s.pressed && { opacity: 0.85 },
         off && { opacity: 0.5 },
         style,
       ]}
@@ -225,7 +234,7 @@ export function ListItem({
 }) {
   const accent = useAccent();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.listItem, pressed && { backgroundColor: palette.sand }]}>
+    <Pressable onPress={onPress} style={(s: any) => [styles.listItem, (s.pressed || s.hovered) && onPress && { backgroundColor: palette.sand }]}>
       {icon && (
         <View style={[styles.listIcon, { backgroundColor: danger ? palette.coralSoft : accent.soft }]}>
           <Ionicons name={icon} size={18} color={danger ? palette.coral : accent.main} />

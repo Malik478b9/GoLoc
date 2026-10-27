@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Avatar, Badge, Button, Card, Empty, ErrorView, Header, Loading, money, openChat, palette, radius, Rating, Row, Segmented, Service,
-  space, T, timeAgo, titleCase, toastError,
+  Avatar, Badge, Button, Card, Empty, ErrorView, Header, Loading, money, openChat, palette, PosterCard, radius, Rating, Row, Segmented, Service,
+  space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
 } from "@goloc/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
@@ -15,12 +15,17 @@ import { toggleSave, useCaptain, useCompare } from "../../../lib/data";
 
 function ServiceCard({ s }: { s: Service }) {
   const pkg = s.kind === "package";
+  const guide = s.kind === "guide";
   return (
     <Card onPress={() => router.push(`/book/${s.id}`)} padded={false} style={{ overflow: "hidden" }}>
       {s.cover_image ? <Image source={{ uri: s.cover_image }} style={{ height: 140 }} contentFit="cover" cachePolicy="memory-disk" /> : null}
       <View style={{ padding: space.lg }}>
         <Row style={{ justifyContent: "space-between" }}>
-          <Badge label={pkg ? `${s.duration_days}D package` : `${s.duration_hours}h experience`} bg={pkg ? palette.marigoldSoft : palette.rickshawSoft} fg={pkg ? palette.warning : palette.rickshaw} />
+          <Badge
+            label={pkg ? `${s.duration_days}D package` : guide ? `Guide · ${s.duration_hours}h a day` : `${s.duration_hours}h experience`}
+            bg={pkg || guide ? palette.marigoldSoft : palette.rickshawSoft}
+            fg={pkg || guide ? palette.warning : palette.rickshaw}
+          />
           <T variant="caption">{titleCase(s.category)} · up to {s.max_guests}</T>
         </Row>
         <T variant="h2" style={{ marginTop: 8 }}>{s.title}</T>
@@ -39,12 +44,12 @@ function ServiceCard({ s }: { s: Service }) {
           <Row style={{ marginTop: space.md, justifyContent: "space-between" }}>
             <T variant="caption">{s.stops.slice(0, 3).join(" → ")}</T>
             <View style={{ alignItems: "flex-end" }}>
-              <T variant="h2">{money(s.price)}</T>
-              <T variant="caption" style={{ fontSize: 11 }}>for {s.included_guests} · +{money(s.extra_guest_price)}/extra</T>
+              <T variant="h2">{money(s.price)}{guide ? <T variant="caption"> /day</T> : null}</T>
+              <T variant="caption" style={{ fontSize: 11 }}>for {s.included_guests} · +{money(s.extra_guest_price)}/extra{guide ? " per day" : ""}</T>
             </View>
           </Row>
         )}
-        <Button title="Book your trip" small style={{ marginTop: space.md }} onPress={() => router.push(`/book/${s.id}`)} />
+        <Button title={guide ? "Pick your dates" : "Book your trip"} small style={{ marginTop: space.md }} onPress={() => router.push(`/book/${s.id}`)} />
       </View>
     </Card>
   );
@@ -57,7 +62,9 @@ export default function CaptainProfile() {
   const compare = useCompare();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"trips" | "reels" | "reviews">("trips");
-  const tileW = (useWindowDimensions().width - space.lg * 2 - 16) / 3;
+  const [gridW, onGridLayout] = useMeasuredWidth(useWindowDimensions().width - space.lg * 2);
+  const cols = gridW > 700 ? 5 : 3;
+  const tileW = (gridW - 8 * (cols - 1)) / cols;
 
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data)
@@ -99,6 +106,12 @@ export default function CaptainProfile() {
           </View>
         </Row>
         <Row gap={6} style={{ flexWrap: "wrap", marginTop: space.md }}>
+          <Badge
+            label={c.captain_type === "guide" ? "Local guide · walks with you" : "Captain · does everything"}
+            icon={c.captain_type === "guide" ? "walk" : "briefcase"}
+            bg={c.captain_type === "guide" ? palette.marigoldSoft : palette.rickshawSoft}
+            fg={c.captain_type === "guide" ? palette.warning : palette.rickshaw}
+          />
           {c.verified ? <Badge label="ID verified" icon="shield-checkmark" bg={palette.successSoft} fg={palette.success} /> : null}
           {c.languages.map((l) => <Badge key={l} label={l} icon="language" />)}
           {c.vehicles.map((v, i) => <Badge key={i} label={`${v.make_model} · ${v.capacity} seats${v.has_ac ? " · AC" : ""}`} icon="car" />)}
@@ -132,11 +145,22 @@ export default function CaptainProfile() {
         </View>
 
         <View style={{ marginTop: space.lg, gap: space.md }}>
+          {tab === "trips" && (c.itineraries ?? []).length ? (
+            <View style={{ gap: space.sm }}>
+              <T variant="h2">Sample itineraries</T>
+              <T variant="caption">How {c.name.split(" ")[0]} plans these trips, day by day. Yours is tailored after you book.</T>
+              {c.itineraries.map((it) => (
+                <Pressable key={it.id} onPress={() => router.push(`/itinerary/${it.id}`)}>
+                  <PosterCard poster={it.poster} it={it} compact />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           {tab === "trips" &&
             (c.services.length ? c.services.map((s) => <ServiceCard key={s.id} s={s} />) : <Empty title="No trips listed yet" />)}
           {tab === "reels" &&
             (c.posts.length ? (
-              <View style={styles.grid}>
+              <View style={styles.grid} onLayout={onGridLayout}>
                 {c.posts.map((p, i) => (
                   <ReelTile key={p.id} p={p} width={tileW} onPress={() => router.push({ pathname: "/reels", params: { captain: c.id, start: String(i) } })} />
                 ))}

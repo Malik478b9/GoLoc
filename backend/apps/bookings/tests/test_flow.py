@@ -336,3 +336,59 @@ class RulesTests(FlowBase):
         self.assertIn("98765", msg["body"])
         polled = self.cap.get(f"/api/v1/chat/{convo['id']}/messages/?after=0").data["messages"]
         self.assertEqual(len(polled), 2)
+
+
+class GuideHireTests(FlowBase):
+    """A local guide hired by the day for the traveler's own arrival → return dates."""
+
+    def setUp(self):
+        super().setUp()
+        self.guide = t.make_live_captain("Ravi Guide", price=2000)
+        self.guide.captain_type = CaptainProfile.Type.GUIDE
+        self.guide.save(update_fields=["captain_type"])
+        self.guide.weekly_slots.update(is_available=True)
+        self.guide_service = self.guide.services.create(
+            kind="guide", title="Hyderabad with a local", category="heritage", price=2000, included_guests=2,
+            extra_guest_price=300, max_guests=6)
+
+    def hire(self, start, end, guests=2):
+        return self.trav.post("/api/v1/bookings/", {
+            "service_id": str(self.guide_service.id), "guests": guests, "start_date": str(start), "end_date": str(end)},
+            format="json")
+
+    def test_priced_per_day_over_arrival_to_return(self):
+        start = t.next_weekday(7)
+        res = self.hire(start, start + timedelta(days=2), guests=3)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["fare"], (2000 + 300) * 3)
+        self.assertEqual(res.data["total"], (2000 + 300) * 3 + 49 * 3 * 3)
+        self.assertEqual(res.data["end_date"], str(start + timedelta(days=2)))
+        quote = self.trav.post("/api/v1/captains/quote/", {
+            "service_id": str(self.guide_service.id), "guests": 3, "start_date": str(start),
+            "end_date": str(start + timedelta(days=2))}, format="json").data
+        self.assertEqual((quote["days"], quote["fare"]), (3, res.data["fare"]))
+
+    def test_return_before_arrival_or_too_long_refused(self):
+        start = t.next_weekday(7)
+        self.assertEqual(self.hire(start, start - timedelta(days=1)).data["code"], "dates_reversed")
+        self.assertEqual(self.hire(start, start + timedelta(days=40)).data["code"], "too_many_days")
+
+    def test_every_day_must_be_free(self):
+        start = t.next_weekday(7)
+        self.guide.blocked_dates.create(date=start + timedelta(days=1))
+        res = self.hire(start, start + timedelta(days=2))
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data["code"], "unavailable")
+
+    def test_guides_cannot_sell_packages_and_discovery_filters_by_type(self):
+        guide_api = t.client_for(self.guide.user, "captain")
+        res = guide_api.post("/api/v1/captain/services/", {
+            "kind": "package", "title": "Week", "category": "heritage", "duration_days": 3,
+            "normal_price": 1000, "medium_price": 2000, "lavish_price": 3000}, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("kind", res.data["fields"])
+        guides = self.client.get("/api/v1/captains/?type=guide").json()["results"]
+        self.assertEqual([c["code"] for c in guides], [self.guide.code])
+        self.assertTrue(guides[0]["has_guide"])
+        captains = self.client.get("/api/v1/captains/?type=captain").json()["results"]
+        self.assertNotIn(self.guide.code, [c["code"] for c in captains])

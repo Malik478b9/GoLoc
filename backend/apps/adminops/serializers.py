@@ -21,7 +21,7 @@ class AdminCaptainRowSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CaptainProfile
-        fields = ["id", "code", "name", "phone", "avatar", "city_name", "review_status", "is_live", "is_on_hold",
+        fields = ["id", "code", "name", "phone", "avatar", "city_name", "captain_type", "review_status", "is_live", "is_on_hold",
                   "is_featured", "rating_avg", "rating_count", "trips_completed", "submitted_at", "last_active_at", "created_at"]
 
 

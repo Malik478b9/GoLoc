@@ -9,7 +9,9 @@
   "scripts": {
     "traveler": "npm --workspace traveler-mob run start",
     "captain": "npm --workspace captain-mob run start",
-    "typecheck": "npm --workspace traveler-mob run typecheck && npm --workspace captain-mob run typecheck"
+    "typecheck": "npm --workspace traveler-mob run typecheck && npm --workspace captain-mob run typecheck",
+    "traveler:web": "npm --workspace traveler-mob run web",
+    "captain:web": "npm --workspace captain-mob run web -- --port 8082"
   },
   "overrides": {
     "react": "19.3.0",

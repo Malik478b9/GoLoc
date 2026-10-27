@@ -5,7 +5,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import type { Role } from "./api/client";
@@ -35,6 +35,16 @@ export function AppShell({ role, children }: { role: Role; children: React.React
   useEffect(() => {
     useAuth.getState().init(role);
   }, [role]);
+
+  useEffect(() => {
+    // Desktop browser: our fields show their own focus border, so drop the
+    // browser's default black outline drawn inside them.
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const style = document.createElement("style");
+    style.textContent = "input:focus,textarea:focus{outline:none}";
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
 
   const ready = fontsLoaded && !loading;
   useEffect(() => {

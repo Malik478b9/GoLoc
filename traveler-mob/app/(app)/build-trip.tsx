@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  api, Avatar, Badge, Button, Calendar, CaptainCard, Card, Chip, Empty, Field, isoDate, longDate, money, palette, Quote, radius, Rating, Row,
-  Screen, space, Stepper, T, TIER_LABEL, titleCase,
+  api, Avatar, Badge, Button, Calendar, CaptainCard, Card, Chip, DateRangeCalendar, dateRange, Empty, Field, isoDate, longDate, money,
+  palette, Quote, radius, Rating, Row, Screen, space, Stepper, T, TIER_LABEL, titleCase, tripDays,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -27,9 +27,13 @@ export default function BuildTrip() {
   const cities = useCities();
   const [step, setStep] = useState(0);
   const [city, setCity] = useState<string | undefined>(current?.slug);
-  const [kind, setKind] = useState<"experience" | "package">("experience");
+  const [kind, setKind] = useState<"experience" | "guide" | "package">("experience");
   const [tier, setTier] = useState<"normal" | "medium" | "lavish">("medium");
   const [date, setDate] = useState<string | undefined>(isoDate(new Date(Date.now() + 3 * 86400000)));
+  const [end, setEnd] = useState<string | undefined>();
+  const multiDay = kind !== "experience";
+  const datesReady = !!date && (!multiDay || !!end);
+  const whenLabel = date ? (multiDay && end ? `${dateRange(date, end)} · ${tripDays(date, end)} days` : longDate(date)) : "";
   const [guests, setGuests] = useState(2);
   const [interests, setInterests] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
@@ -38,7 +42,7 @@ export default function BuildTrip() {
   const match = useMutation({
     mutationFn: () =>
       api.post<{ tier: string; results: Match[] }>("/captains/match/", {
-        city: city ?? current?.slug, start_date: date, guests, kind, tier, interests, languages, budget: budget ? Number(budget) : null,
+        city: city ?? current?.slug, start_date: date, end_date: multiDay ? end : undefined, guests, kind, tier, interests, languages, budget: budget ? Number(budget) : null,
       }),
     onSuccess: () => setStep(3),
   });
@@ -51,10 +55,11 @@ export default function BuildTrip() {
       <View style={styles.wrap}>
         {(cities.data ?? []).map((c) => <Chip key={c.id} label={c.name} active={(city ?? current?.slug) === c.slug} onPress={() => setCity(c.slug)} />)}
       </View>
-      <T variant="h2" style={{ marginTop: space.md }}>What kind of trip?</T>
+      <T variant="h2" style={{ marginTop: space.md }}>How do you want to travel?</T>
       {([
-        ["experience", "sunny", "Day experience", "Guide, food trail or walk — a few hours, no hotel."],
-        ["package", "bed", "Full-service package", "Multi-day. Your Captain books stays, meals, cabs and permits."],
+        ["package", "briefcase", "Hire a Captain · they do everything", "Multi-day. Your Captain books stays, meals, cabs and permits, and guides you too."],
+        ["guide", "walk", "Plan it yourself · hire a guide", "A local guide walks with you each day, showing where to go, what to see and how to get around. You book your own stay and travel."],
+        ["experience", "sunny", "Just a day experience", "A food trail, heritage walk or day trip. A few hours, no hotel."],
       ] as const).map(([v, icon, title, body]) => (
         <Pressable key={v} onPress={() => setKind(v)} style={[styles.option, kind === v && styles.optionActive]}>
           <View style={styles.optIcon}><Ionicons name={icon} size={22} color={palette.rickshaw} /></View>
@@ -82,9 +87,19 @@ export default function BuildTrip() {
     // 1 — when & who
     <View key="1" style={{ gap: space.md }}>
       <Card>
-        <T variant="h2" style={{ marginBottom: space.md }}>Start date</T>
-        <Calendar value={date} onChange={setDate} />
-        {date ? <T variant="bodyBold" color={palette.rickshaw} style={{ marginTop: 6 }}>{longDate(date)}</T> : null}
+        {multiDay ? (
+          <>
+            <T variant="h2">Arrival and return</T>
+            <T variant="caption" style={{ marginBottom: space.md }}>Tap the day you arrive, then the day you leave.</T>
+            <DateRangeCalendar start={date} end={end} onChange={(s, e) => { setDate(s); setEnd(e); }} maxSpan={30} />
+          </>
+        ) : (
+          <>
+            <T variant="h2" style={{ marginBottom: space.md }}>Date</T>
+            <Calendar value={date} onChange={setDate} />
+            {date ? <T variant="bodyBold" color={palette.rickshaw} style={{ marginTop: 6 }}>{longDate(date)}</T> : null}
+          </>
+        )}
       </Card>
       <Card><Stepper label="Travelers" value={guests} onChange={setGuests} max={kind === "package" ? 8 : 12} /></Card>
       <Field label="Budget for the whole trip (optional)" prefix="₹" keyboardType="number-pad" value={budget} onChangeText={(v) => setBudget(v.replace(/\D/g, ""))} placeholder="e.g. 50000" />
@@ -99,13 +114,15 @@ export default function BuildTrip() {
     // 3 — matches
     <View key="3" style={{ gap: space.md }}>
       <T variant="caption">
-        {kind === "package" ? `${TIER_LABEL[tier]} package` : "Day experience"} · {guests} traveler{guests > 1 ? "s" : ""} · {date ? longDate(date) : ""}
+        {kind === "package" ? `${TIER_LABEL[tier]} package` : kind === "guide" ? "Guide by the day" : "Day experience"} · {guests} traveler{guests > 1 ? "s" : ""} · {whenLabel}
       </T>
       {(match.data?.results ?? []).length === 0 ? (
-        <Empty icon="search-outline" title="No matches yet" body="Try another date, fewer interests, or a day experience instead." action="Change plan" onAction={() => setStep(0)} />
+        <Empty icon="search-outline" title="No matches yet" body={kind === "package" ? "Try a longer stay (packages must fit between arrival and return), another date, or hire a guide instead." : "Try other dates, fewer interests, or a different way to travel."} action="Change plan" onAction={() => setStep(0)} />
       ) : (
         match.data!.results.map((m) => (
-          <Card key={m.captain.id} onPress={() => router.push({ pathname: "/book/[serviceId]", params: { serviceId: m.service.id, date: m.available ? date : undefined, guests: String(guests), tier } })}>
+          <Card key={m.captain.id} onPress={() => router.push({ pathname: "/book/[serviceId]", params: {
+            serviceId: m.service.id, date: m.available ? date : undefined, end: m.available && kind === "guide" ? end : undefined, guests: String(guests), tier,
+          } })}>
             <Row gap={space.md}>
               <Avatar uri={m.captain.avatar} name={m.captain.name} size={52} verified />
               <View style={{ flex: 1 }}>
@@ -138,7 +155,7 @@ export default function BuildTrip() {
   return (
     <Screen
       title={titles[step]}
-      subtitle={step < 3 ? `Step ${step + 1} of 3` : `${match.data?.results.length ?? 0} Captains`}
+      subtitle={step < 3 ? `Step ${step + 1} of 3` : `${match.data?.results.length ?? 0} matches`}
       footer={
         step < 3 ? (
           <Row gap={10}>
@@ -146,7 +163,7 @@ export default function BuildTrip() {
             <Button
               title={step === 2 ? "Find my Captains" : "Next"}
               loading={match.isPending}
-              disabled={step === 1 && !date}
+              disabled={step === 1 && !datesReady}
               onPress={() => (step === 2 ? match.mutate() : setStep(step + 1))}
               style={{ flex: 2 }}
             />

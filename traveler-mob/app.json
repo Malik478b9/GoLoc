@@ -61,6 +61,14 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "GoLoc",
+      "shortName": "GoLoc",
+      "themeColor": "#0E2B2C",
+      "backgroundColor": "#F6EFE1"
     }
   }
 }

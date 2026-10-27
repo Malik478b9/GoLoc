@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.support",
     "apps.adminops",
+    "apps.itineraries",
+    "apps.assist",
 ]
 
 MIDDLEWARE = [
@@ -162,6 +164,8 @@ REST_FRAMEWORK = {
         "chat": config("THROTTLE_CHAT", default="40/min"),
         "upload": config("THROTTLE_UPLOAD", default="30/hour"),
         "booking_request": config("THROTTLE_BOOKING_REQUEST", default="20/hour"),
+        "itinerary_ai": config("THROTTLE_ITINERARY_AI", default="30/hour"),
+        "ai_assist": config("THROTTLE_AI_ASSIST", default="120/hour"),
     },
     "EXCEPTION_HANDLER": "apps.accounts.exceptions.api_exception_handler",
 }
@@ -206,10 +210,12 @@ if OTP_PROVIDER == "twilio_verify" and not DEBUG and not all(
 # CORS — which web frontends may call this API from a browser.
 # (Native mobile apps don't use CORS.)
 # --------------------------------------------------------------------------
+# Dev: the web desks (5174-5176) and the Traveler/Captain apps in a desktop browser (Expo web, 8081+).
 _DEV_ORIGINS = ",".join(
-    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (5174, 5175, 5176)
+    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (5174, 5175, 5176, 8081, 8082, 8083, 19006)
 )
-CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default=_DEV_ORIGINS if DEBUG else "", cast=Csv())
+# An empty value in .env means "use the dev defaults" (DEBUG only), not "allow nothing".
+CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv()) or (_DEV_ORIGINS.split(",") if DEBUG else [])
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 
 # --------------------------------------------------------------------------
@@ -303,6 +309,15 @@ INSURANCE_PREMIUM_PER_GUEST_DAY = config("INSURANCE_PREMIUM_PER_GUEST_DAY", defa
 REQUEST_EXPIRY_HOURS = config("REQUEST_EXPIRY_HOURS", default=24, cast=int)     # Captain must answer within
 PAYMENT_WINDOW_MINUTES = config("PAYMENT_WINDOW_MINUTES", default=120, cast=int)  # Traveler must pay within
 BOOKING_MAX_DAYS_AHEAD = config("BOOKING_MAX_DAYS_AHEAD", default=180, cast=int)
+GUIDE_MAX_DAYS = config("GUIDE_MAX_DAYS", default=30, cast=int)  # longest single guide hire, arrival → return
+
+# AI (itineraries, "Edit with AI"). Groq is used when its key is set, else Claude; with neither,
+# Captains get a fill-in itinerary template and the AI buttons are hidden. See apps/common/llm.py.
+GROQ_API_KEY = config("GROQ_API_KEY", default="")
+ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
+AI_PROVIDER = config("AI_PROVIDER", default="")  # "groq" | "anthropic" to choose when both keys are set
+# Run itinerary generation in the request thread (tests). Otherwise: Celery, or a background thread when there is no broker.
+ITINERARY_SYNC = config("ITINERARY_SYNC", default=False, cast=bool)
 CAPTAIN_INACTIVITY_HOLD_DAYS = config("CAPTAIN_INACTIVITY_HOLD_DAYS", default=30, cast=int)  # BR-3
 MIN_PAYOUT_AMOUNT = config("MIN_PAYOUT_AMOUNT", default=500, cast=int)
 # BR-4: (at least this many hours before start, % of fare refunded). First match wins.

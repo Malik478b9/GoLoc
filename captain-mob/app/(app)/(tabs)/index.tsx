@@ -57,7 +57,7 @@ export default function Business() {
           <View style={{ marginTop: space.xl, gap: space.md }}>
             {[
               ["person", "Business profile", "Your story, languages and specialties"],
-              ["pricetags", "Services & pricing", "Day experiences and Normal / Medium / Lavish packages"],
+              ["pricetags", "Services & pricing", "Day experiences, guide days, and packages if you do everything"],
               ["shield-checkmark", "Verification", "ID and vehicle documents — reviewed in 24–48h"],
               ["wallet", "Payouts", "UPI or bank — paid after each completed trip"],
             ].map(([i, t, b]) => (

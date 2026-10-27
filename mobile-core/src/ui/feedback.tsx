@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 
 import { palette, radius, space } from "../theme";
-import { Button, T } from "./primitives";
+import { Button, T, useWide } from "./primitives";
 
 // ---------------------------------------------------------------- toast
 type ToastState = { message: string | null; tone: "info" | "success" | "error"; show: (m: string, tone?: "info" | "success" | "error") => void };
@@ -50,13 +50,17 @@ export function ToastHost() {
 // ---------------------------------------------------------------- bottom sheet
 export function Sheet({ visible, onClose, title, children }: { visible: boolean; onClose: () => void; title?: string; children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
+  const wide = useWide();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose} statusBarTranslucent>
       {/* iOS doesn't resize for the keyboard inside a Modal, so lift the sheet ourselves. */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, space.lg) }]}>
-          <View style={styles.grabber} />
+      <KeyboardAvoidingView style={[{ flex: 1 }, wide && styles.dialogWrap]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Pressable style={wide ? StyleSheet.absoluteFill : styles.backdrop} onPress={onClose}>
+          {wide ? <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(18,33,31,0.45)" }]} /> : null}
+        </Pressable>
+        {/* Desktop: a centred dialog. Phone: a bottom sheet. */}
+        <View style={[styles.sheet, wide ? styles.dialog : { paddingBottom: Math.max(insets.bottom, space.lg) }]}>
+          {wide ? null : <View style={styles.grabber} />}
           {title ? <T variant="title" style={{ marginBottom: space.md }}>{title}</T> : null}
           {children}
         </View>
@@ -120,6 +124,8 @@ const styles = StyleSheet.create({
   toast: { position: "absolute", left: space.lg, right: space.lg, zIndex: 1000, backgroundColor: palette.ink, borderRadius: radius.md, padding: space.md, flexDirection: "row", alignItems: "center", gap: space.sm },
   backdrop: { flex: 1, backgroundColor: "rgba(18,33,31,0.45)" },
   sheet: { backgroundColor: palette.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: space.xl, paddingTop: space.md, maxHeight: "88%" },
+  dialogWrap: { alignItems: "center", justifyContent: "center", padding: space.xl },
+  dialog: { width: "100%", maxWidth: 520, borderRadius: 24, paddingTop: space.xl, paddingBottom: space.xl, maxHeight: "90%" },
   grabber: { alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: palette.lineStrong, marginBottom: space.lg },
   banner: { flexDirection: "row", gap: space.md, padding: space.md, borderRadius: radius.md, alignItems: "flex-start" },
 });

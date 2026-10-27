@@ -28,6 +28,9 @@ class RequestOTPSerializer(serializers.Serializer):
     # Optional: which app is asking. Lets us skip sending an SMS when someone
     # tries the admin console with a number that isn't an admin.
     role = serializers.ChoiceField(choices=User.Role.choices, required=False)
+    # "signin": the number must already have an account (we say so before sending a code).
+    # "signup": new or existing number; the name is asked up front. Omitted: either (older app builds).
+    intent = serializers.ChoiceField(choices=["signin", "signup"], required=False)
 
 
 class VerifyOTPSerializer(serializers.Serializer):

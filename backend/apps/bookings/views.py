@@ -48,7 +48,7 @@ def get_booking(request, ref, for_update_detail=False) -> Booking:
 class BookingListCreateView(generics.ListCreateAPIView):
     """
     GET  /bookings/?filter=upcoming|requests|awaiting_payment|active|past  (traveler or captain view)
-    POST /bookings/  (traveler) {service_id, tier, guests, start_date, start_time?, meeting_point?, note?}
+    POST /bookings/  (traveler) {service_id, tier, guests, start_date, end_date?, start_time?, meeting_point?, note?}
     """
 
     permission_classes = [IsTravelerOrCaptain]
@@ -78,7 +78,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
         d = s.validated_data
         booking = services.create_request(
             request.user, d["service"], tier=d["tier"], guests=d["guests"], start_date=d["start_date"],
-            start_time=d.get("start_time"), meeting_point=d["meeting_point"], note=d["note"],
+            end_date=d.get("end_date"), start_time=d.get("start_time"), meeting_point=d["meeting_point"], note=d["note"],
         )
         return Response(BookingDetailSerializer(booking, context={"request": request, "role": "traveler"}).data,
                         status=status.HTTP_201_CREATED)

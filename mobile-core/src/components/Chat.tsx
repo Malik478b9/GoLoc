@@ -140,7 +140,22 @@ export function ChatThread({ id }: { id: string }) {
             )}
           />
           <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
-            <TextInput value={text} onChangeText={setText} placeholder="Message…" placeholderTextColor={palette.muted} style={styles.input} multiline maxLength={2000} />
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={Platform.OS === "web" ? "Message… (Enter to send, Shift+Enter for a new line)" : "Message…"}
+              placeholderTextColor={palette.muted}
+              style={styles.input}
+              multiline
+              maxLength={2000}
+              onKeyPress={(e: any) => {
+                // Desktop: Enter sends, Shift+Enter adds a line.
+                if (Platform.OS === "web" && e.nativeEvent.key === "Enter" && !e.nativeEvent.shiftKey) {
+                  e.preventDefault?.();
+                  send();
+                }
+              }}
+            />
             <Pressable onPress={send} disabled={!text.trim() || sending} style={[styles.send, { backgroundColor: text.trim() ? accent.main : palette.lineStrong }]}>
               <Ionicons name="arrow-up" size={20} color={palette.white} />
             </Pressable>

@@ -15,6 +15,9 @@ export const CaptainRow = memo(function CaptainRow({ c, right }: { c: CaptainCar
       <View style={{ flex: 1 }}>
         <Row style={{ justifyContent: "space-between" }}>
           <T variant="h2" numberOfLines={1} style={{ flex: 1 }}>{c.name}</T>
+          <T variant="caption" color={c.captain_type === "guide" ? palette.warning : palette.rickshaw} style={{ marginRight: 6 }}>
+            {c.captain_type === "guide" ? "Guide" : "Captain"}
+          </T>
           {c.is_featured ? <Ionicons name="ribbon" size={16} color={palette.marigold} /> : null}
         </Row>
         <T variant="caption" numberOfLines={1}>{c.tagline || c.categories.map(titleCase).join(" · ")}</T>
@@ -23,6 +26,7 @@ export const CaptainRow = memo(function CaptainRow({ c, right }: { c: CaptainCar
             <Rating value={c.rating_avg} count={c.rating_count} />
             <T variant="caption">{c.trips_completed} trips</T>
             {c.has_package ? <T variant="caption" color={palette.rickshaw}>· Packages</T> : null}
+            {c.has_guide ? <T variant="caption" color={palette.warning}>· Guide by day</T> : null}
           </Row>
           <T variant="bodyBold">{c.from_price ? `from ${money(c.from_price)}` : ""}</T>
         </Row>

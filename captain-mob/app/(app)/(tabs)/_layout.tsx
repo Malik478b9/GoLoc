@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, Conversation, fonts, Paginated, palette, useUnreadCount } from "@goloc/core";
+import { api, Conversation, fonts, Paginated, palette, useUnreadCount, useWide } from "@goloc/core";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs } from "expo-router";
 import type { ColorValue } from "react-native";
@@ -14,6 +14,7 @@ const icon = (name: keyof typeof Ionicons.glyphMap) => ({ color, focused }: { co
 export default function TabsLayout() {
   useUnreadCount();
   const insets = useSafeAreaInsets();
+  const wide = useWide();
   const dash = useDashboard();
   const chats = useQuery({ queryKey: ["conversations"], queryFn: () => api.get<Paginated<Conversation>>("/chat/"), refetchInterval: 30000 });
   const unreadChats = (chats.data?.results ?? []).reduce((n, c) => n + c.unread, 0);
@@ -23,8 +24,14 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: palette.ember,
         tabBarInactiveTintColor: palette.muted,
-        tabBarStyle: { backgroundColor: palette.paper, borderTopColor: palette.line, height: 58 + insets.bottom, paddingTop: 6, paddingBottom: insets.bottom },
-        tabBarLabelStyle: { fontFamily: fonts.bold, fontSize: 11, marginBottom: insets.bottom ? 0 : 6 },
+        // Desktop: a labelled sidebar on the left. Phone: the usual bottom tab bar.
+        tabBarPosition: wide ? "left" : "bottom",
+        tabBarVariant: wide ? "material" : "uikit",
+        tabBarLabelPosition: wide ? "beside-icon" : "below-icon",
+        tabBarStyle: wide
+          ? { backgroundColor: palette.paper, borderRightColor: palette.line, minWidth: 200, paddingTop: 24 }
+          : { backgroundColor: palette.paper, borderTopColor: palette.line, height: insets.bottom ? 58 + insets.bottom : 64, paddingTop: 6, paddingBottom: insets.bottom },
+        tabBarLabelStyle: wide ? { fontFamily: fonts.bold, fontSize: 14 } : { fontFamily: fonts.bold, fontSize: 11, marginBottom: insets.bottom ? 0 : 6 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Business", tabBarIcon: icon("briefcase") }} />

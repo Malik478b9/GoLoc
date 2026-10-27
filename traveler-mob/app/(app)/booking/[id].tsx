@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   api, Avatar, Banner, BookingDetail, Button, Card, ConfirmSheet, dateRange, Divider, ErrorView, Field, Loading, money, openChat,
-  palette, Rating, Row, Screen, SOSButton, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError, useCheckout,
+  palette, Rating, Row, Screen, shareText, SOSButton, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError, useCheckout,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { Linking, Share, StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 
 type Preview = { refund_percent: number; refund_amount: number };
 
@@ -85,7 +85,7 @@ export default function BookingScreen() {
         )}
         {a.sos ? <SOSButton bookingRef={b.id} /> : null}
         {b.share_url ? (
-          <Button title="Share trip with family" icon="share-social" kind="secondary" onPress={() => Share.share({ message: `I'm on a GoLoc trip (${b.code}) with ${b.captain.name}. Follow live: ${b.share_url}` })} />
+          <Button title="Share trip with family" icon="share-social" kind="secondary" onPress={() => shareText(`I'm on a GoLoc trip (${b.code}) with ${b.captain.name}. Follow live: ${b.share_url}`)} />
         ) : null}
         {a.review ? <Button title="Rate your trip" icon="star" onPress={() => router.push(`/review/${b.id}`)} /> : null}
         {b.review ? (
@@ -108,6 +108,21 @@ export default function BookingScreen() {
           </Card>
         )}
       </View>
+
+      {/* ----- itinerary ----- */}
+      {b.itinerary ? (
+        <Card style={{ marginTop: space.lg }} onPress={() => router.push(`/itinerary/${b.itinerary!.id}`)}>
+          <Row gap={space.md}>
+            <Ionicons name="document-text" size={26} color={palette.rickshaw} />
+            <View style={{ flex: 1 }}>
+              <T variant="label">Your itinerary</T>
+              <T variant="h2">{b.itinerary.title}</T>
+              <T variant="caption">Day by day from {b.captain.name}: stays, meals, tickets and timings.</T>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+          </Row>
+        </Card>
+      ) : null}
 
       {/* ----- captain ----- */}
       <Card style={{ marginTop: space.lg }}>

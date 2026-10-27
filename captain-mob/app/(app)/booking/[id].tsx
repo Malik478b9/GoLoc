@@ -86,6 +86,24 @@ export default function CaptainBooking() {
         {a.track && b.status === "in_progress" ? <Button title="Open trip console" icon="navigate" kind="dark" onPress={() => router.push(`/trip/${b.id}`)} /> : null}
       </View>
 
+      {!["cancelled", "declined", "expired"].includes(b.status) ? (
+        <Card style={{ marginTop: space.lg }}>
+          <T variant="label">Itinerary</T>
+          {b.itinerary ? (
+            <>
+              <T variant="h2" style={{ marginTop: 4 }}>{b.itinerary.title}</T>
+              <T variant="caption">{b.itinerary.code} · {b.itinerary.is_published ? "Shared with the traveler" : b.itinerary.status === "generating" ? "AI is writing…" : "Not shared yet"}</T>
+              <Button title="Open itinerary" icon="document-text" small kind="secondary" onPress={() => router.push(`/itineraries/${b.itinerary!.id}`)} style={{ marginTop: space.md, alignSelf: "flex-start" }} />
+            </>
+          ) : (
+            <>
+              <T variant="caption" style={{ marginTop: 4 }}>Build a day-by-day plan for {b.traveler.name}: their dates, comfort level and requests. AI drafts it from your default itinerary; you finish and share it.</T>
+              <Button title="Build itinerary with AI" icon="sparkles" small onPress={() => router.push({ pathname: "/itineraries/new", params: { booking_id: b.id } })} style={{ marginTop: space.md, alignSelf: "flex-start" }} />
+            </>
+          )}
+        </Card>
+      ) : null}
+
       <Card style={{ marginTop: space.lg }}>
         <T variant="label">Traveler</T>
         <Row style={{ justifyContent: "space-between", marginTop: 4 }}>

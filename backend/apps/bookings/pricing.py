@@ -2,6 +2,7 @@
 Money rules in one place (spec §6). All amounts are whole rupees.
 
   fare        what the Captain's service costs for this group
+              (guide hire: per-day group price × days between arrival and return)
   insurance   per booking (BR-6): INSURANCE_FEE_PER_GUEST_DAY × guests × days
   commission  PLATFORM_COMMISSION_PERCENT of fare (insurance is not commissioned)
   captain_net fare − commission, credited only after completion (BR-2)
@@ -26,16 +27,22 @@ class Quote:
         return asdict(self)
 
 
-def trip_days(service) -> int:
-    return service.duration_days if service.kind == "package" else 1
+def trip_days(service, days: int | None = None) -> int:
+    """Packages have a fixed length; guide hire runs for the days the traveler picks; experiences are one day."""
+    if service.kind == "package":
+        return service.duration_days
+    if service.kind == "guide":
+        return max(1, days or 1)
+    return 1
 
 
-def quote(service, tier: str, guests: int) -> Quote:
+def quote(service, tier: str, guests: int, days: int | None = None) -> Quote:
+    days = trip_days(service, days)
     if service.kind == "package":
         fare = service.tier_price(tier) * guests
     else:
-        fare = service.price + max(0, guests - service.included_guests) * service.extra_guest_price
-    days = trip_days(service)
+        per_day = service.price + max(0, guests - service.included_guests) * service.extra_guest_price
+        fare = per_day * (days if service.kind == "guide" else 1)
     insurance_fee = settings.INSURANCE_FEE_PER_GUEST_DAY * guests * days
     premium = settings.INSURANCE_PREMIUM_PER_GUEST_DAY * guests * days
     commission = round(fare * settings.PLATFORM_COMMISSION_PERCENT / 100)

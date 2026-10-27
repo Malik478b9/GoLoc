@@ -7,6 +7,7 @@ export type CaptainProfile = {
   full_name: string;
   city_id: string;
   city_name: string;
+  captain_type: "captain" | "guide";
   tagline: string;
   bio: string;
   avatar: string | null;

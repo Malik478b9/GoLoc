@@ -20,7 +20,7 @@ const MIME: Record<string, string> = {
  * FormData part for a picked file. The name comes from the actual file on disk
  * (iOS keeps the original "IMG_0042.HEIC" name even after converting to JPEG).
  */
-export function assetPart(uri: string, fallbackName: string) {
+export function assetPart(uri: string, fallbackName: string): Promise<any> {
   const ext = (uri.split("?")[0].split(".").pop() || "").toLowerCase();
   const known = MIME[ext];
   const base = fallbackName.replace(/\.[^.]+$/, "");

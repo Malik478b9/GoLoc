@@ -63,6 +63,25 @@ on Android. The in-app notification inbox still works. For real push, make a dev
 Allow *Local Network* access when iOS asks, otherwise the app can't reach your laptop. The iOS
 Simulator needs a Mac; on Windows use a real iPhone, or a cloud build (below).
 
+### Desktop (Windows & Mac)
+
+The Traveler and Captain apps also run on desktop computers, from the **same code**. Wide screens
+get a left sidebar, centred content, multi-column lists and dialogs instead of bottom sheets.
+
+```bash
+npm run traveler:web        # opens http://localhost:8081 in your browser
+npm run captain:web         # http://localhost:8082
+```
+
+Works in Chrome, Edge, Firefox and Safari, on Windows and macOS. On desktop:
+- **Payment** opens in a pop-up window. Allow pop-ups for the site.
+- **Share trip** copies the link to the clipboard.
+- **Push notifications** don't exist; the in-app notification list does.
+
+To host them, run `npm run build:web` inside `traveler-mob` / `captain-mob`. That produces a `dist/`
+folder you can serve from any static host (nginx, Netlify, S3…). Add each site's address to
+`CORS_ALLOWED_ORIGINS` on the API.
+
 ### 3. Admin console
 
 ```bash
@@ -168,6 +187,7 @@ Bundle ids are `in.goloc.traveler` and `in.goloc.captain`.
 ### Before real users
 
 - **Twilio Verify:** set it up for SMS OTP. India needs DLT sender registration, which takes a few days.
+- **AI (Groq or Claude):** set `GROQ_API_KEY` (used first; model `openai/gpt-oss-120b`) or `ANTHROPIC_API_KEY` (`claude-opus-5-5`) in `backend/.env`; `AI_PROVIDER=groq|anthropic` chooses when both are set. This powers AI itineraries and posters, and the ✨ AI button on text fields ("Edit with AI": improve, shorten, translate, or any instruction). Without a key, itineraries use a fill-in template and the AI buttons are hidden.
 - **Razorpay:** create keys and a webhook (`payment.captured`, `payment.failed`). Test keys work end
   to end with no real money.
 - **Emergency directory:** add verified local police stations and hospitals per city (Admin → Cities

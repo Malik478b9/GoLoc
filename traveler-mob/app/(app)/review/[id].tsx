@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, BookingDetail, Button, Field, Loading, palette, Row, Screen, space, T, toast, toastError } from "@goloc/core";
+import {
+  AIField, api, BookingDetail, Button, Loading, palette, Row, Screen, space, T, toast, toastError,
+} from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -34,7 +36,7 @@ export default function Review() {
         ))}
       </Row>
       <T variant="bodyBold" center style={{ marginBottom: space.xl }}>{LABELS[rating]}</T>
-      <Field label="Tell other travelers (optional)" multiline value={comment} onChangeText={setComment} maxLength={1000} placeholder="What made it special? Anything to improve?" />
+      <AIField purpose="review_comment" context={{ rating }} label="Tell other travelers (optional)" multiline value={comment} onChangeText={setComment} maxLength={1000} placeholder="What made it special? Anything to improve?" />
     </Screen>
   );
 }

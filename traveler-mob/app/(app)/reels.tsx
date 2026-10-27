@@ -107,7 +107,9 @@ function ReelItem({ p, active, height }: { p: Post; active: boolean; height: num
 
 export default function Reels() {
   const { city, captain, start } = useLocalSearchParams<{ city?: string; captain?: string; start?: string }>();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  // Desktop: a centred 9:16 column, like reels on the web.
+  const columnW = Math.min(width, Math.round(height * 0.5625), 520);
   const insets = useSafeAreaInsets();
   const [active, setActive] = useState(Number(start ?? 0));
   const q = useInfiniteQuery({
@@ -125,6 +127,7 @@ export default function Reels() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={{ flex: 1, width: columnW, alignSelf: "center" }}>
       {q.isLoading ? (
         <ActivityIndicator color={palette.white} style={{ flex: 1 }} />
       ) : (
@@ -147,6 +150,7 @@ export default function Reels() {
           ListEmptyComponent={<T color={palette.white} center style={{ marginTop: height / 2 }}>No reels yet.</T>}
         />
       )}
+      </View>
       <Pressable onPress={() => router.back()} style={[styles.close, { top: insets.top + 8 }]} hitSlop={10}>
         <Ionicons name="close" size={26} color={palette.white} />
       </Pressable>

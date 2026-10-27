@@ -27,7 +27,7 @@ export default function Documents() {
   const upload = async (docType: string, uri: string, name: string, type: string) => {
     const form = new FormData();
     form.append("doc_type", docType);
-    form.append("file", filePart(uri, name, type));
+    form.append("file", await filePart(uri, name, type));
     setUploading(docType);
     try {
       await api.upload("/captain/documents/", form);

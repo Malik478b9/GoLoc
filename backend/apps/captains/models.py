@@ -15,6 +15,10 @@ class CaptainProfile(models.Model):
     only when approved by Admin, switched live by the Captain and not on hold.
     """
 
+    class Type(models.TextChoices):
+        CAPTAIN = "captain", "Captain · does everything"
+        GUIDE = "guide", "Local guide"
+
     class ReviewStatus(models.TextChoices):
         DRAFT = "draft", "Draft"
         PENDING = "pending", "Pending review"
@@ -25,6 +29,10 @@ class CaptainProfile(models.Model):
     code = models.CharField(max_length=16, unique=True, help_text="Public ID, e.g. CAP-1001.")
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="captain_profile")
     city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="captain_profiles")
+    captain_type = models.CharField(
+        max_length=8, choices=Type.choices, default=Type.CAPTAIN,
+        help_text="Captain: full service (stays, transport, packages). Guide: walks with travelers in person and shows the way.",
+    )
     tagline = models.CharField(max_length=140, blank=True)
     bio = models.TextField(max_length=2000, blank=True)
     avatar = models.ImageField(upload_to=upload_to("avatars"), validators=[validate_image], blank=True)
@@ -83,12 +91,17 @@ class ServiceOffer(models.Model):
     """
     What a Captain sells.
       experience — a day experience at one group price (+ per extra guest)
-      package    — multi-day, Captain-managed logistics, priced per person by tier
+      guide      — an in-person guide hired by the day for the traveler's own dates;
+                   group price per day (+ per extra guest per day). Traveler arranges stay/transport.
+      package    — multi-day, Captain-managed logistics, priced per person by tier (Captains only)
     """
 
     class Kind(models.TextChoices):
         EXPERIENCE = "experience", "Day experience"
+        GUIDE = "guide", "Guide by the day"
         PACKAGE = "package", "Full-service package"
+
+    PER_DAY_KINDS = (Kind.GUIDE,)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="services")
@@ -124,7 +137,7 @@ class ServiceOffer(models.Model):
         indexes = [models.Index(fields=["captain", "is_active"]), models.Index(fields=["category", "is_active"])]
         constraints = [
             models.CheckConstraint(
-                condition=(models.Q(kind="experience", price__gt=0))
+                condition=(models.Q(kind__in=["experience", "guide"], price__gt=0))
                 | models.Q(kind="package", normal_price__gt=0, medium_price__gte=models.F("normal_price"),
                            lavish_price__gte=models.F("medium_price")),
                 name="service_prices_valid",
@@ -139,7 +152,7 @@ class ServiceOffer(models.Model):
 
     @property
     def from_price(self):
-        return self.price if self.kind == self.Kind.EXPERIENCE else self.normal_price
+        return self.normal_price if self.kind == self.Kind.PACKAGE else self.price
 
 
 class Vehicle(models.Model):

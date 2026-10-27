@@ -36,7 +36,22 @@ def _require(booking, *statuses, message="This booking can't do that right now."
 
 
 # ---------------------------------------------------------------- request
-def create_request(traveler, service, *, tier, guests, start_date, start_time=None, meeting_point="", note="") -> Booking:
+def trip_end_date(service, start_date, end_date=None):
+    """
+    Return date for a trip. Guide hire uses the traveler's own return date;
+    packages run their fixed length; experiences are a single day.
+    """
+    if service.kind == "guide":
+        end_date = end_date or start_date
+        if end_date < start_date:
+            raise bad_request("Your return date must be on or after your arrival date.", "dates_reversed")
+        if (end_date - start_date).days + 1 > settings.GUIDE_MAX_DAYS:
+            raise bad_request(f"A guide can be booked for up to {settings.GUIDE_MAX_DAYS} days at a time.", "too_many_days")
+        return end_date
+    return start_date + timedelta(days=pricing.trip_days(service) - 1)
+
+
+def create_request(traveler, service, *, tier, guests, start_date, end_date=None, start_time=None, meeting_point="", note="") -> Booking:
     captain = service.captain
     if not service.is_active or not captain.is_bookable:
         raise conflict("This Captain isn't taking bookings right now.", "not_bookable")
@@ -54,10 +69,10 @@ def create_request(traveler, service, *, tier, guests, start_date, start_time=No
         raise bad_request("Choose today or a later date.", "date_in_past")
     if start_date > today + timedelta(days=settings.BOOKING_MAX_DAYS_AHEAD):
         raise bad_request(f"Bookings open {settings.BOOKING_MAX_DAYS_AHEAD} days ahead.", "too_far_ahead")
-    end_date = start_date + timedelta(days=pricing.trip_days(service) - 1)
+    end_date = trip_end_date(service, start_date, end_date)
     start_time = start_time or service.start_time
 
-    q = pricing.quote(service, tier, guests)
+    q = pricing.quote(service, tier, guests, (end_date - start_date).days + 1)
     with transaction.atomic():
         CaptainProfile.objects.select_for_update().get(pk=captain.pk)
         reason = unavailable_reason(captain, start_date, end_date)
@@ -67,7 +82,7 @@ def create_request(traveler, service, *, tier, guests, start_date, start_time=No
             traveler=traveler, service=service, start_date=start_date, status__in=Booking.ACTIVE
         ).exists()
         if duplicate:
-            raise conflict("You already have a request for this trip on that date.", "duplicate_request")
+            raise conflict("You already have a request for this trip on those dates.", "duplicate_request")
         booking = Booking(
             code=next_public_code("BKG"), traveler=traveler, captain=captain, service=service, city=captain.city,
             kind=service.kind, tier=tier, guests=guests, start_date=start_date, end_date=end_date, start_time=start_time,
@@ -79,14 +94,19 @@ def create_request(traveler, service, *, tier, guests, start_date, start_time=No
         booking.save()
         log(booking, traveler, "traveler", "requested", f"Requested for {guests} guest(s)")
     notify(captain.user, "captain", "booking_requested", f"New request · {booking.code}",
-           f"{traveler.full_name or 'A traveler'} · {service.title} · {start_date:%d %b} · ₹{booking.fare:,}",
+           f"{traveler.full_name or 'A traveler'} · {service.title} · {_dates(start_date, end_date)} · ₹{booking.fare:,}",
            {"booking_id": booking.id})
     return booking
+
+
+def _dates(start, end):
+    return f"{start:%d %b}" if start == end else f"{start:%d %b} → {end:%d %b}"
 
 
 def _snapshot(service):
     return {
         "title": service.title, "category": service.category, "kind": service.kind,
+        "captain_type": service.captain.captain_type, "price_per_day": service.price if service.kind == "guide" else None,
         "duration_hours": service.duration_hours, "duration_days": service.duration_days,
         "stops": service.stops, "itinerary": service.itinerary, "tier_inclusions": service.tier_inclusions,
     }

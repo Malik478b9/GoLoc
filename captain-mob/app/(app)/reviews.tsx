@@ -1,4 +1,6 @@
-import { api, Button, Card, Empty, Field, Paginated, palette, Rating, Review, Row, Screen, Sheet, SkeletonList, space, T, timeAgo, toast, toastError } from "@goloc/core";
+import {
+  AIField, api, Button, Card, Empty, Paginated, palette, Rating, Review, Row, Screen, Sheet, SkeletonList, space, T, timeAgo, toast, toastError,
+} from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import { View } from "react-native";
@@ -55,7 +57,7 @@ export default function Reviews() {
         </View>
       )}
       <Sheet visible={!!replying} onClose={() => setReplying(null)} title={`Reply to ${replying?.traveler_name ?? ""}`}>
-        <Field multiline value={text} onChangeText={setText} maxLength={1000} placeholder="Thank them, or address their feedback politely." />
+        <AIField purpose="review_reply" context={{ traveler: replying?.traveler_name, rating: replying?.rating, review: replying?.comment }} multiline value={text} onChangeText={setText} maxLength={1000} placeholder="Thank them, or address their feedback politely." />
         <Button title="Post reply" disabled={!text.trim()} loading={reply.isPending} onPress={() => reply.mutate()} />
       </Sheet>
     </Screen>

@@ -13,7 +13,9 @@ export type User = {
   city: City | null;
 };
 
-export type ServiceKind = "experience" | "package";
+export type ServiceKind = "experience" | "guide" | "package";
+/** captain = does everything (stays, transport, packages); guide = walks with travelers and shows the way. */
+export type CaptainType = "captain" | "guide";
 export type Tier = "standard" | "normal" | "medium" | "lavish";
 
 export type Service = {
@@ -46,6 +48,8 @@ export type CaptainCard = {
   name: string;
   avatar: string | null;
   tagline: string;
+  captain_type: CaptainType;
+  captain_type_label: string;
   city_name: string;
   city_slug: string;
   languages: string[];
@@ -57,6 +61,7 @@ export type CaptainCard = {
   is_featured: boolean;
   from_price: number | null;
   has_package: boolean;
+  has_guide: boolean;
   saved?: boolean;
 };
 
@@ -96,6 +101,8 @@ export type CaptainDetail = CaptainCard & {
   verified: boolean;
   posts: Post[];
   reviews: Review[];
+  /** Published default itineraries, newest first. */
+  itineraries: ItinerarySummary[];
 };
 
 export type Quote = {
@@ -143,6 +150,7 @@ export type Booking = {
 
 export type BookingDetail = Booking & {
   service_id: string;
+  itinerary: ItinerarySummary | null;
   meeting_point: string;
   note: string;
   service_snapshot: { title: string; stops: string[]; itinerary: string[]; tier_inclusions: Record<string, string[]>; duration_hours: number; duration_days: number };
@@ -220,4 +228,76 @@ export type Ticket = {
   refund_amount: number;
   booking_code: string | null;
   created_at: string;
+};
+
+// ---------------------------------------------------------------- itineraries
+export type TravelLeg = { date_label: string; mode: string; point: string; time: string; pickup: string; notes: string };
+export type ScheduleItem = {
+  time: string;
+  activity: string;
+  place: string;
+  type: "travel" | "sightseeing" | "meal" | "stay" | "activity" | "ticket" | "free";
+  details: string;
+  cost: string;
+};
+export type ItineraryDay = {
+  day: number;
+  date_label: string;
+  title: string;
+  base: string;
+  overview: string;
+  schedule: ScheduleItem[];
+  meals: { breakfast: string; lunch: string; dinner: string };
+  /** confirmed = a hotel the Captain named; otherwise an AI suggestion to confirm. */
+  stay: { hotel: string; area: string; category: string; confirmed: boolean; notes: string };
+  transport: string;
+  tickets: { item: string; price: string; notes: string }[];
+  tips: string[];
+};
+export type ItineraryContent = {
+  title: string;
+  summary: string;
+  highlights: string[];
+  arrival: TravelLeg;
+  departure: TravelLeg;
+  days: ItineraryDay[];
+  inclusions: string[];
+  exclusions: string[];
+  cost_estimate: { item: string; amount: string }[];
+  packing_list: string[];
+  important_notes: string[];
+};
+export type ItineraryPoster = {
+  headline: string;
+  tagline: string;
+  duration_label: string;
+  highlights: string[];
+  tier_label: string;
+  price_line: string;
+  call_to_action: string;
+};
+export type ItinerarySummary = {
+  id: string;
+  code: string;
+  kind: "template" | "custom";
+  title: string;
+  destination: string;
+  tier: "standard" | "normal" | "medium" | "lavish";
+  tier_label: string;
+  days: number;
+  guests: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: "draft" | "generating" | "ready" | "failed";
+  is_published: boolean;
+  poster: Partial<ItineraryPoster>;
+  share_url: string | null;
+  poster_url: string | null;
+  updated_at: string;
+};
+export type Itinerary = ItinerarySummary & {
+  content: Partial<ItineraryContent>;
+  arrival: Partial<{ mode: string; point: string; time: string; reference: string }>;
+  departure: Partial<{ mode: string; point: string; time: string; reference: string }>;
+  captain: { id: string; code: string; name: string; avatar: string | null; captain_type: CaptainType };
 };

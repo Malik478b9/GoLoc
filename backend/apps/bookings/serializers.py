@@ -67,12 +67,13 @@ class BookingDetailSerializer(BookingListSerializer):
     review = serializers.SerializerMethodField()
     refunded = serializers.SerializerMethodField()
     service_id = serializers.UUIDField(source="service.id", read_only=True)
+    itinerary = serializers.SerializerMethodField()
 
     class Meta(BookingListSerializer.Meta):
         fields = BookingListSerializer.Meta.fields + [
             "service_id", "meeting_point", "note", "service_snapshot", "insurance_fee", "insurance_policy_no", "commission",
             "cancelled_by", "cancel_reason", "refund_percent", "refunded", "accepted_at", "confirmed_at", "started_at",
-            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "events", "actions",
+            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "itinerary", "events", "actions",
         ]
 
     def get_start_pin(self, obj):
@@ -82,6 +83,17 @@ class BookingDetailSerializer(BookingListSerializer):
         if self.role == "traveler" and obj.status in {Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS}:
             return public_url(self.context.get("request"), f"/t/{obj.share_token}/")
         return None
+
+    def get_itinerary(self, obj):
+        """Traveler: the plan their Captain shared. Captain: their latest one for this trip, shared or not."""
+        from apps.itineraries.models import Itinerary
+        from apps.itineraries.serializers import ItinerarySummarySerializer
+
+        qs = obj.itineraries.filter(kind=Itinerary.Kind.CUSTOM)
+        if self.role == "traveler":
+            qs = qs.filter(is_published=True, status=Itinerary.Status.READY)
+        it = qs.order_by("-updated_at").first()
+        return ItinerarySummarySerializer(it, context=self.context).data if it else None
 
     def get_review(self, obj):
         review = getattr(obj, "review", None)
@@ -122,7 +134,8 @@ class BookingCreateSerializer(serializers.Serializer):
     )
     tier = serializers.ChoiceField(choices=["standard", "normal", "medium", "lavish"], required=False, default="standard")
     guests = serializers.IntegerField(min_value=1, max_value=20)
-    start_date = serializers.DateField()
+    start_date = serializers.DateField(help_text="Arrival / first day.")
+    end_date = serializers.DateField(required=False, allow_null=True, help_text="Return / last day (guide hire).")
     start_time = serializers.TimeField(required=False, allow_null=True)
     meeting_point = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
     note = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")

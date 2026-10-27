@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  api, ApiError, assetPart, Banner, Button, Card, Chip, COMPATIBLE, ConfirmSheet, Field, Loading, palette, radius, Row, Screen, Service, space, Stepper, T,
-  titleCase, toast, toastError, Toggle,
+  AIField, api, ApiError, assetPart, Banner, Button, Card, Chip, COMPATIBLE, ConfirmSheet, Field, Loading, palette, radius, Row, Screen, Service, space, Stepper, T, titleCase, toast, toastError, Toggle,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
@@ -17,13 +16,14 @@ const num = (v: string) => v.replace(/\D/g, "");
 const lines = (v: string) => v.split("\n").map((s) => s.trim()).filter(Boolean);
 
 export default function ServiceEditor() {
-  const { id, kind: kindParam } = useLocalSearchParams<{ id?: string; kind?: "experience" | "package" }>();
+  const { id, kind: kindParam } = useLocalSearchParams<{ id?: string; kind?: "experience" | "guide" | "package" }>();
   const qc = useQueryClient();
   const refresh = useRefreshBusiness();
   const options = useOptions();
   const existing = useQuery({ queryKey: ["my-service", id], queryFn: () => api.get<Service>(`/captain/services/${id}/`), enabled: !!id });
   const kind = existing.data?.kind ?? kindParam ?? "experience";
   const pkg = kind === "package";
+  const guide = kind === "guide";
 
   const [f, setF] = useState({
     title: "", description: "", category: "", price: "", included_guests: 2, extra_guest_price: "", duration_hours: 4, start_time: "09:00",
@@ -85,7 +85,7 @@ export default function ServiceEditor() {
     if (res.canceled || !id) return;
     const a = res.assets[0];
     const form = new FormData();
-    form.append("image", assetPart(a.uri, "cover.jpg"));
+    form.append("image", await assetPart(a.uri, "cover.jpg"));
     try {
       await api.upload(`/captain/services/${id}/cover/`, form);
       qc.invalidateQueries({ queryKey: ["my-service", id] });
@@ -101,7 +101,7 @@ export default function ServiceEditor() {
 
   return (
     <Screen
-      title={id ? "Edit service" : pkg ? "New package" : "New day experience"}
+      title={id ? "Edit service" : pkg ? "New package" : guide ? "New guide day" : "New day experience"}
       footer={<Button title="Save" loading={save.isPending} disabled={!f.title.trim() || !f.category} onPress={() => save.mutate()} />}
     >
       {id ? (
@@ -114,12 +114,12 @@ export default function ServiceEditor() {
         </Pressable>
       ) : null}
 
-      <Field label="Title" value={f.title} onChangeText={(v) => set({ title: v })} maxLength={120} placeholder={pkg ? "e.g. Leh · Ladakh Explorer" : "e.g. Old City Food Trail"} error={fe("title")} />
+      <AIField purpose="service_title" context={{ kind, category: f.category, description: f.description }} label="Title" value={f.title} onChangeText={(v) => set({ title: v })} maxLength={120} placeholder={pkg ? "e.g. Leh · Ladakh Explorer" : guide ? "e.g. Explore Hyderabad with a local" : "e.g. Old City Food Trail"} error={fe("title")} />
       <T variant="small" style={{ marginBottom: 8, fontWeight: "700" }}>Category</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: space.lg }}>
         {(options.data?.categories ?? []).map((c) => <Chip key={c} label={titleCase(c)} active={f.category === c} onPress={() => set({ category: c })} />)}
       </View>
-      <Field label="Description" value={f.description} onChangeText={(v) => set({ description: v })} multiline maxLength={2000} placeholder="What travelers will experience" />
+      <AIField purpose="service_description" context={{ kind, title: f.title, category: f.category, stops: f.stops, days: pkg ? f.duration_days : undefined, hours: f.duration_hours }} label="Description" value={f.description} onChangeText={(v) => set({ description: v })} multiline maxLength={2000} placeholder="What travelers will experience" />
       <Card style={{ marginBottom: space.md }}><Stepper label="Max guests" value={f.max_guests} onChange={(v) => set({ max_guests: v })} max={20} /></Card>
 
       {pkg ? (
@@ -130,28 +130,34 @@ export default function ServiceEditor() {
           {TIERS.map((t) => (
             <View key={t}>
               <Field label={`${titleCase(t)} price`} prefix="₹" keyboardType="number-pad" value={f[`${t}_price`]} onChangeText={(v) => set({ [`${t}_price`]: num(v) } as any)} error={fe(`${t}_price`)} />
-              <Field label={`${titleCase(t)} includes (one per line)`} multiline value={f[`inc_${t}`]} onChangeText={(v) => set({ [`inc_${t}`]: v } as any)}
+              <AIField purpose="tier_inclusions" context={{ title: f.title, tier: t, days: f.duration_days, description: f.description }} label={`${titleCase(t)} includes (one per line)`} multiline value={f[`inc_${t}`]} onChangeText={(v) => set({ [`inc_${t}`]: v } as any)}
                 placeholder={t === "normal" ? "Guesthouse stay\nLocal meals (2/day)\nShared cab" : t === "medium" ? "3★ hotel\nHotel + local food\nPrivate cab" : "4–5★ boutique stay\nFine dining\nPrivate SUV"} />
             </View>
           ))}
-          <Field label="Itinerary (one line per day)" multiline value={f.itinerary} onChangeText={(v) => set({ itinerary: v })} placeholder={"Arrive · check-in · easy walk\nMonastery day\nLake day"} />
+          <AIField purpose="service_itinerary" context={{ title: f.title, days: f.duration_days, description: f.description }} label="Itinerary (one line per day)" multiline value={f.itinerary} onChangeText={(v) => set({ itinerary: v })} placeholder={"Arrive · check-in · easy walk\nMonastery day\nLake day"} />
         </>
       ) : (
         <>
-          <Field label="Price for the group" prefix="₹" keyboardType="number-pad" value={f.price} onChangeText={(v) => set({ price: num(v) })} error={fe("price")} />
+          {guide ? (
+            <T variant="caption" style={{ marginBottom: space.md }}>
+              Travelers pick their arrival and return dates and pay this price for every day. You meet them each day and guide them in person; they arrange their own stay and transport.
+            </T>
+          ) : null}
+          <Field label={guide ? "Price per day for the group" : "Price for the group"} prefix="₹" keyboardType="number-pad" value={f.price} onChangeText={(v) => set({ price: num(v) })} error={fe("price")} />
           <Card style={{ marginBottom: space.md, gap: space.md }}>
             <Stepper label="Guests included" value={f.included_guests} onChange={(v) => set({ included_guests: v })} max={f.max_guests} />
-            <Stepper label="Duration (hours)" value={f.duration_hours} onChange={(v) => set({ duration_hours: v })} max={14} />
+            <Stepper label={guide ? "Hours with travelers each day" : "Duration (hours)"} value={f.duration_hours} onChange={(v) => set({ duration_hours: v })} max={14} />
           </Card>
-          <Field label="Extra guest price" prefix="₹" keyboardType="number-pad" value={f.extra_guest_price} onChangeText={(v) => set({ extra_guest_price: num(v) })} />
+          <Field label={guide ? "Extra guest price per day" : "Extra guest price"} prefix="₹" keyboardType="number-pad" value={f.extra_guest_price} onChangeText={(v) => set({ extra_guest_price: num(v) })} />
           <Field label="Usual start time (24h)" value={f.start_time} onChangeText={(v) => set({ start_time: v.replace(/[^\d:]/g, "").slice(0, 5) })} placeholder="09:00" keyboardType="numbers-and-punctuation" error={fe("start_time")} />
-          <Field label="Stops (one per line)" multiline value={f.stops} onChangeText={(v) => set({ stops: v })} placeholder={"Charminar\nLaad Bazaar\nPista House"} />
+          <AIField purpose="service_stops" context={{ title: f.title, kind, category: f.category, description: f.description }} label={guide ? "Places you usually cover (one per line)" : "Stops (one per line)"} multiline value={f.stops} onChangeText={(v) => set({ stops: v })} placeholder={"Charminar\nLaad Bazaar\nPista House"} />
         </>
       )}
 
       {id ? <Toggle label="Accepting bookings" hint="Pause instead of deleting to keep reviews and history." value={f.is_active} onChange={(v) => set({ is_active: v })} /> : null}
       {err && !err.fields ? <Banner tone="danger" title={err.message} /> : null}
-      {err?.fields && Object.keys(err.fields).some((k) => !["title", "price", "normal_price", "medium_price", "lavish_price", "start_time"].includes(k)) ? (
+      {fe("kind") ? <Banner tone="danger" title={fe("kind")!} /> : null}
+      {err?.fields && Object.keys(err.fields).some((k) => !["title", "kind", "price", "normal_price", "medium_price", "lavish_price", "start_time"].includes(k)) ? (
         <Banner tone="danger" title={err.message} />
       ) : null}
       {id ? <Button title="Delete service" kind="ghost" onPress={() => setConfirmDelete(true)} style={{ marginTop: space.lg }} /> : null}

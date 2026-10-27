@@ -26,9 +26,11 @@ export default function Account() {
         <Divider />
         <ListItem icon="person-outline" title="Business profile" subtitle="Photo, bio, languages, specialties" onPress={() => router.push("/setup/profile")} />
         <Divider />
-        <ListItem icon="pricetags-outline" title="Services & pricing" subtitle="Experiences and Normal / Medium / Lavish packages" onPress={() => router.push("/setup/services")} />
+        <ListItem icon="pricetags-outline" title="Services & pricing" subtitle="Day experiences, guide days and packages" onPress={() => router.push("/setup/services")} />
         <Divider />
-        <ListItem icon="car-outline" title="Vehicles" onPress={() => router.push("/setup/vehicles")} />
+        <ListItem icon="document-text-outline" title="Itineraries" subtitle="AI day-by-day plans and posters for your trips" onPress={() => router.push("/itineraries")} />
+        <Divider />
+        <ListItem icon="car-outline" title="Vehicles" subtitle="Optional for local guides" onPress={() => router.push("/setup/vehicles")} />
         <Divider />
         <ListItem icon="shield-checkmark-outline" title="Verification documents" onPress={() => router.push("/setup/documents")} />
         <Divider />

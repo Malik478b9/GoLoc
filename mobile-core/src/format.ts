@@ -28,6 +28,16 @@ export const longDate = (iso: string) => {
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
 
+/** ISO date `n` days after `iso` (local time, so no DST surprises). */
+export const addDays = (iso: string, n: number) => {
+  const d = parseDate(iso);
+  return isoDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+};
+
+/** Days in a trip, counting both the first and last day (arrival 1st → return 3rd = 3). */
+export const tripDays = (start: string, end: string) =>
+  Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86400000) + 1;
+
 export const dateRange = (start: string, end: string) => (start === end ? shortDate(start) : `${shortDate(start)} – ${shortDate(end)}`);
 
 export const time12 = (hhmm: string | null | undefined) => {
@@ -92,4 +102,6 @@ export const CATEGORY_ICON: Record<string, string> = {
   transport: "car",
 };
 
+export const KIND_LABEL: Record<string, string> = { experience: "Day experience", guide: "Guide by the day", package: "Full-service package" };
+export const CAPTAIN_TYPE_LABEL: Record<string, string> = { captain: "Captain", guide: "Local guide" };
 export const TIER_LABEL: Record<string, string> = { standard: "Standard", normal: "Normal", medium: "Medium", lavish: "Lavish" };

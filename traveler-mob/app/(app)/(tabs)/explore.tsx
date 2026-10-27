@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Chip, Empty, ErrorView, palette, radius, SkeletonList, space, T, titleCase } from "@goloc/core";
+import { Button, Chip, Empty, ErrorView, palette, radius, Segmented, SkeletonList, space, T, titleCase, useWide } from "@goloc/core";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -19,30 +19,51 @@ const SORTS = [
 const LANGS = ["English", "Hindi", "Telugu", "Tamil", "Urdu", "Rajasthani"];
 
 export default function Explore() {
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ category?: string; type?: string }>();
   const city = useCity();
   const compare = useCompare();
+  const wide = useWide();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [category, setCategory] = useState(params.category ?? "");
   const [kind, setKind] = useState("");
+  // "" = everyone, "captain" = does everything (stays, transport, packages), "guide" = walks with you, you plan the rest.
+  const [type, setType] = useState<"" | "captain" | "guide">((params.type as "captain" | "guide") ?? "");
   const [sort, setSort] = useState("");
   const [language, setLanguage] = useState("");
 
   useEffect(() => setCategory(params.category ?? ""), [params.category]);
   useEffect(() => {
+    if (params.type === "captain" || params.type === "guide") setType(params.type);
+  }, [params.type]);
+  useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
 
-  const res = useDiscovery({ city: city?.slug, q: debounced, category, kind, sort, language, page_size: "30" });
+  const res = useDiscovery({ city: city?.slug, q: debounced, category, kind, type, sort, language, page_size: "30" });
+  const noun = type === "guide" ? "guide" : type === "captain" ? "Captain" : "local";
   const rows = res.data?.results ?? [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm }}>
-        <T variant="title">Find Captains</T>
+        <T variant="title">Find locals</T>
         <T variant="caption">{city?.name} · verified locals with clear prices</T>
+        <View style={{ marginTop: space.md }}>
+          <Segmented
+            options={[{ value: "", label: "All" }, { value: "captain", label: "Captains" }, { value: "guide", label: "Guides" }]}
+            value={type}
+            onChange={setType}
+          />
+          <T variant="caption" style={{ marginTop: 6 }}>
+            {type === "guide"
+              ? "A guide walks with you in person and shows you where to go, what to see and how to get around. You plan your own stay and travel."
+              : type === "captain"
+                ? "A Captain does everything: stays, meals, transport and permits, plus guiding."
+                : "Captains handle everything. Guides walk with you while you plan the rest."}
+          </T>
+        </View>
         <View style={styles.search}>
           <Ionicons name="search" size={18} color={palette.muted} />
           <TextInput value={q} onChangeText={setQ} placeholder="Name, trip, or CAP-ID" placeholderTextColor={palette.muted} style={styles.input} autoCapitalize="none" returnKeyType="search" />
@@ -52,6 +73,7 @@ export default function Explore() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={{ flexGrow: 0 }}>
         <Chip label="Packages" icon="bed" active={kind === "package"} onPress={() => setKind(kind === "package" ? "" : "package")} />
         <Chip label="Day trips" icon="sunny" active={kind === "experience"} onPress={() => setKind(kind === "experience" ? "" : "experience")} />
+        <Chip label="Guide by day" icon="walk" active={kind === "guide"} onPress={() => setKind(kind === "guide" ? "" : "guide")} />
         {CATEGORIES.map((c) => <Chip key={c} label={titleCase(c)} active={category === c} onPress={() => setCategory(category === c ? "" : c)} />)}
       </ScrollView>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chips, { paddingTop: 0 }]} style={{ flexGrow: 0 }}>
@@ -65,16 +87,20 @@ export default function Explore() {
         <ErrorView error={res.error} onRetry={res.refetch} />
       ) : (
         <FlatList
+          key={wide ? "grid" : "list"}
           data={rows}
           keyExtractor={(c) => c.id}
+          numColumns={wide ? 2 : 1}
+          columnWrapperStyle={wide ? { gap: 10 } : undefined}
           contentContainerStyle={{ padding: space.lg, gap: 10, paddingBottom: compare.ids.length ? 120 : 40 }}
           onRefresh={res.refetch}
           refreshing={res.isRefetching}
           initialNumToRender={8}
           windowSize={7}
-          ListHeaderComponent={<T variant="caption">{res.data?.count ?? rows.length} Captain{rows.length === 1 ? "" : "s"}{res.isFetching ? " · updating…" : ""}</T>}
-          ListEmptyComponent={<Empty icon="search-outline" title="No Captains match" body="Try fewer filters or another city." />}
+          ListHeaderComponent={<T variant="caption">{res.data?.count ?? rows.length} {noun}{rows.length === 1 ? "" : "s"}{res.isFetching ? " · updating…" : ""}</T>}
+          ListEmptyComponent={<Empty icon="search-outline" title={`No ${noun}s match`} body="Try fewer filters or another city." />}
           renderItem={({ item }) => (
+            <View style={{ flex: 1 }}>
             <CaptainRow
               c={item}
               right={
@@ -83,6 +109,7 @@ export default function Explore() {
                 </Pressable>
               }
             />
+            </View>
           )}
         />
       )}

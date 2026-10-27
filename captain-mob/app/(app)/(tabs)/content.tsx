@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, Badge, Button, Empty, palette, Post, radius, Row, Skeleton, space, Stat, T } from "@goloc/core";
+import { api, Badge, Button, Empty, palette, Post, radius, Row, Skeleton, space, Stat, T, useMeasuredWidth } from "@goloc/core";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -11,7 +11,9 @@ type Insights = { posts: number; views: number; likes: number; profile_opens: nu
 
 export default function Content() {
   const { width } = useWindowDimensions();
-  const tile = (width - space.lg * 2 - 16) / 3;
+  const [listW, onListLayout] = useMeasuredWidth(width);
+  const cols = listW > 900 ? 5 : listW > 600 ? 4 : 3;
+  const tile = (listW - space.lg * 2 - 8 * (cols - 1)) / cols;
   const posts = useQuery({ queryKey: ["my-posts"], queryFn: () => api.get<{ results: Post[] }>("/social/mine/", { page_size: 50 }) });
   const insights = useQuery({ queryKey: ["insights"], queryFn: () => api.get<Insights>("/social/mine/insights/") });
   const i = insights.data;
@@ -19,9 +21,11 @@ export default function Content() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
       <FlatList
+        key={`cols-${cols}`}
+        onLayout={onListLayout}
         data={posts.data?.results ?? []}
         keyExtractor={(p) => p.id}
-        numColumns={3}
+        numColumns={cols}
         columnWrapperStyle={{ gap: 8 }}
         contentContainerStyle={{ padding: space.lg, gap: 8, paddingBottom: 100 }}
         onRefresh={() => {

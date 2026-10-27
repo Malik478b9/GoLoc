@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, ApiError, assetPart, Avatar, Button, Chip, City, COMPATIBLE, Field, Loading, palette, Row, Screen, space, T, titleCase, toast, toastError, useAuth } from "@goloc/core";
+import {
+  AIField, api, ApiError, assetPart, Avatar, Button, Chip, City, COMPATIBLE, Field, Loading, palette, Row, Screen, space, T, titleCase, toast, toastError, useAuth,
+} from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -18,6 +20,7 @@ export default function ProfileSetup() {
   const p = profile.data;
   const [name, setName] = useState(user?.full_name ?? "");
   const [cityId, setCityId] = useState<string | undefined>();
+  const [type, setType] = useState<"captain" | "guide">("captain");
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
   const [years, setYears] = useState("0");
@@ -29,6 +32,7 @@ export default function ProfileSetup() {
     if (!p) return;
     setName(p.full_name);
     setCityId(p.city_id);
+    setType(p.captain_type ?? "captain");
     setTagline(p.tagline);
     setBio(p.bio);
     setYears(String(p.years_experience));
@@ -39,7 +43,7 @@ export default function ProfileSetup() {
   const save = useMutation({
     mutationFn: () =>
       api.put<CaptainProfile>("/captain/profile/", {
-        full_name: name.trim(), city_id: cityId, tagline: tagline.trim(), bio: bio.trim(),
+        full_name: name.trim(), city_id: cityId, captain_type: type, tagline: tagline.trim(), bio: bio.trim(),
         years_experience: Number(years) || 0, languages, categories,
       }),
     onSuccess: (saved) => {
@@ -57,7 +61,7 @@ export default function ProfileSetup() {
     if (res.canceled) return;
     const asset = res.assets[0];
     const form = new FormData();
-    form.append("avatar", assetPart(asset.uri, "avatar.jpg"));
+    form.append("avatar", await assetPart(asset.uri, "avatar.jpg"));
     setUploading(true);
     try {
       qc.setQueryData(["captain-profile"], await api.upload<CaptainProfile>("/captain/profile/avatar/", form));
@@ -90,14 +94,34 @@ export default function ProfileSetup() {
       </Pressable>
 
       <Field label="Your name (as on your ID)" value={name} onChangeText={setName} error={err?.field("full_name")} />
+      <T variant="small" style={{ marginBottom: 8, fontWeight: "700" }}>How do you work?</T>
+      <View style={{ gap: 10, marginBottom: space.lg }}>
+        {([
+          ["captain", "briefcase", "Captain · I do everything", "Stays, meals, transport, permits and guiding. You can sell full packages, day experiences and guide days."],
+          ["guide", "walk", "Local guide · I guide in person", "You walk with travelers and show them where to go, what to see and how to get around. They arrange their own stay and travel."],
+        ] as const).map(([v, icon, title, body]) => {
+          const active = type === v;
+          return (
+            <Pressable key={v} onPress={() => setType(v)} style={{ flexDirection: "row", gap: space.md, alignItems: "center", padding: space.lg, borderRadius: 16, borderWidth: 1.5, borderColor: active ? palette.ember : palette.line, backgroundColor: active ? palette.emberSoft : palette.paper }}>
+              <Ionicons name={icon} size={22} color={palette.ember} />
+              <View style={{ flex: 1 }}>
+                <T variant="h2">{title}</T>
+                <T variant="caption">{body}</T>
+              </View>
+              <Ionicons name={active ? "radio-button-on" : "radio-button-off"} size={22} color={active ? palette.ember : palette.muted} />
+            </Pressable>
+          );
+        })}
+        {err?.field("captain_type") ? <T variant="small" color={palette.coral}>{err.field("captain_type")}</T> : null}
+      </View>
       <T variant="small" style={{ marginBottom: 6, fontWeight: "700" }}>Your city</T>
       <T variant="caption" style={{ marginBottom: 8 }}>{cityLocked ? "Locked after submission — contact support to change." : "You can host trips only in this city."}</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: space.lg }}>
         {(cities.data ?? []).map((c) => <Chip key={c.id} label={c.name} active={cityId === c.id} onPress={cityLocked ? undefined : () => setCityId(c.id)} />)}
       </View>
       {err?.field("city_id") ? <T variant="small" color={palette.coral}>{err.field("city_id")}</T> : null}
-      <Field label="Tagline" placeholder="e.g. Old City food & heritage specialist" value={tagline} onChangeText={setTagline} maxLength={140} />
-      <Field label="About you" placeholder="Where you grew up, what you love showing people, what makes your trips different…" value={bio} onChangeText={setBio} multiline maxLength={2000} error={err?.field("bio")} />
+      <AIField purpose="profile_tagline" context={{ name, type, languages, specialties: categories, bio }} label="Tagline" placeholder="e.g. Old City food & heritage specialist" value={tagline} onChangeText={setTagline} maxLength={140} />
+      <AIField purpose="profile_bio" context={{ name, type, years_experience: years, languages, specialties: categories, tagline }} label="About you" placeholder="Where you grew up, what you love showing people, what makes your trips different…" value={bio} onChangeText={setBio} multiline maxLength={2000} error={err?.field("bio")} />
       <Field label="Years hosting / guiding" value={years} onChangeText={(v) => setYears(v.replace(/\D/g, "").slice(0, 2))} keyboardType="number-pad" />
 
       <T variant="small" style={{ marginBottom: 8, fontWeight: "700" }}>Languages you speak</T>

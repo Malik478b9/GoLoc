@@ -53,6 +53,7 @@ class OTPFlowTests(TestCase):
         return self.client.post(REQUEST, {"phone_number": phone, **extra}, format="json")
 
     def _verify(self, code, phone="9876543210", role="traveler", **extra):
+        extra.setdefault("full_name", "Test Traveler")
         return self.client.post(VERIFY, {"phone_number": phone, "code": code, "role": role, **extra}, format="json")
 
     def _age_latest(self, seconds):
@@ -209,6 +210,37 @@ class OTPFlowTests(TestCase):
         self.assertEqual(res.status_code, 403)
         self.assertEqual(res.data["code"], "account_disabled")
 
+    # ---- sign in vs create account ---------------------------------------
+    def test_signup_needs_a_name_and_keeps_the_code_usable(self):
+        code = self._request(intent="signup").data["dev_code"]
+        res = self._verify(code, full_name="")
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.data["code"], "name_required")
+        self.assertFalse(User.objects.exists())
+        res = self._verify(code, full_name="Asha Rao")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["created"])
+
+    def test_signin_with_unknown_number_sends_no_code(self):
+        res = self._request(intent="signin")
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(res.data["code"], "account_not_found")
+        self.assertFalse(OTPChallenge.objects.exists())
+
+    def test_signin_needs_only_number_and_code(self):
+        User.objects.create_user("9876543210", full_name="Asha Rao")
+        res = self._request(intent="signin")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data["is_new"])
+        res = self.client.post(VERIFY, {"phone_number": "9876543210", "code": res.data["dev_code"], "role": "captain"},
+                               format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data["created"])
+        self.assertEqual(res.data["user"]["full_name"], "Asha Rao")
+
+    def test_signup_reports_new_number(self):
+        self.assertTrue(self._request(intent="signup").data["is_new"])
+
     def test_role_lives_in_token_so_two_apps_can_be_open_at_once(self):
         code = self._request().data["dev_code"]
         traveler_access = self._verify(code, role="traveler").data["access"]
@@ -229,7 +261,8 @@ class SessionTests(TestCase):
         cache.clear()
         self.client = APIClient()
         code = self.client.post(REQUEST, {"phone_number": "9876543210"}, format="json").data["dev_code"]
-        res = self.client.post(VERIFY, {"phone_number": "9876543210", "code": code, "role": "captain"}, format="json")
+        res = self.client.post(VERIFY, {"phone_number": "9876543210", "code": code, "role": "captain",
+                                         "full_name": "Dev"}, format="json")
         self.access, self.refresh = res.data["access"], res.data["refresh"]
         self.user = User.objects.get()
 

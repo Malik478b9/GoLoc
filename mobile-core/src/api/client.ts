@@ -1,7 +1,8 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
-import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 import { API_URL } from "../config";
+import { storage } from "../storage";
 
 export type Role = "traveler" | "captain";
 
@@ -38,22 +39,22 @@ export function configureClient(r: Role, signedOut: () => void) {
 }
 
 export async function loadTokens() {
-  accessToken = await SecureStore.getItemAsync(keys().access);
+  accessToken = await storage.get(keys().access);
   return !!accessToken;
 }
 
 export async function saveTokens(access: string, refresh: string) {
   accessToken = access;
-  await Promise.all([SecureStore.setItemAsync(keys().access, access), SecureStore.setItemAsync(keys().refresh, refresh)]);
+  await Promise.all([storage.set(keys().access, access), storage.set(keys().refresh, refresh)]);
 }
 
 export async function clearTokens() {
   accessToken = null;
-  await Promise.all([SecureStore.deleteItemAsync(keys().access), SecureStore.deleteItemAsync(keys().refresh)]);
+  await Promise.all([storage.remove(keys().access), storage.remove(keys().refresh)]);
 }
 
 export async function getRefreshToken() {
-  return SecureStore.getItemAsync(keys().refresh);
+  return storage.get(keys().refresh);
 }
 
 export const http = axios.create({ baseURL: API_URL, timeout: 20000 });
@@ -129,7 +130,22 @@ export const api = {
     ).data,
 };
 
-/** React Native FormData file part from a picker URI. */
-export function filePart(uri: string, name: string, type: string) {
-  return { uri, name, type } as any;
+const EXT: Record<string, string> = {
+  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
+  "video/mp4": "mp4", "video/quicktime": "mov", "application/pdf": "pdf",
+};
+
+/**
+ * FormData file part from a picker URI.
+ * Phones: React Native's {uri, name, type} object.
+ * Browser: the picker gives a blob:/data: URL, so read it into a real File
+ * (and name it by its actual type, e.g. a picked PNG becomes "avatar.png").
+ */
+export async function filePart(uri: string, name: string, type: string): Promise<any> {
+  if (Platform.OS !== "web") return { uri, name, type };
+  const blob = await (await fetch(uri)).blob();
+  const realType = blob.type || type;
+  const ext = EXT[realType];
+  const fileName = ext ? name.replace(/\.[^.]+$/, "") + "." + ext : name;
+  return new File([blob], fileName, { type: realType });
 }

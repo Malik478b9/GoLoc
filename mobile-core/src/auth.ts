@@ -1,9 +1,9 @@
-import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 
 import { api, clearTokens, configureClient, getRefreshToken, loadTokens, Role, saveTokens } from "./api/client";
 import type { User } from "./api/types";
 import { queryClient } from "./query";
+import { storage } from "./storage";
 
 type Status = "loading" | "signedOut" | "signedIn";
 
@@ -12,14 +12,18 @@ type AuthState = {
   status: Status;
   user: User | null;
   init: (role: Role) => Promise<void>;
-  requestOtp: (phone: string) => Promise<{ phone_number: string; resend_in: number; dev_code?: string }>;
+  /** signin: the number must have an account. signup: name is collected first. */
+  requestOtp: (phone: string, intent?: "signin" | "signup") => Promise<{ phone_number: string; resend_in: number; is_new?: boolean; dev_code?: string }>;
   verifyOtp: (phone: string, code: string, fullName?: string) => Promise<{ created: boolean }>;
   refreshMe: () => Promise<void>;
   setUser: (u: User) => void;
   logout: () => Promise<void>;
+  /** Last number signed in with on this device, so signing back in is just "send code". */
+  lastPhone: () => Promise<string | null>;
 };
 
 const userKey = (role: Role) => `goloc.${role}.user`;
+const lastPhoneKey = (role: Role) => `goloc.${role}.lastPhone`;
 
 export const useAuth = create<AuthState>((set, get) => ({
   role: "traveler",
@@ -35,7 +39,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const hasToken = await loadTokens();
     if (!hasToken) return set({ status: "signedOut" });
     // Render instantly from the cached profile; refresh it in the background.
-    const cached = await SecureStore.getItemAsync(userKey(role));
+    const cached = await storage.get(userKey(role));
     if (cached) set({ status: "signedIn", user: JSON.parse(cached) });
     try {
       await get().refreshMe();
@@ -45,7 +49,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
-  requestOtp: (phone) => api.post("/auth/otp/request/", { phone_number: phone, role: get().role }),
+  requestOtp: (phone, intent) => api.post("/auth/otp/request/", { phone_number: phone, role: get().role, intent }),
 
   verifyOtp: async (phone, code, fullName) => {
     const data = await api.post<{ access: string; refresh: string; user: User; created: boolean }>("/auth/otp/verify/", {
@@ -55,27 +59,30 @@ export const useAuth = create<AuthState>((set, get) => ({
       full_name: fullName || undefined,
     });
     await saveTokens(data.access, data.refresh);
-    await SecureStore.setItemAsync(userKey(get().role), JSON.stringify(data.user));
+    await storage.set(userKey(get().role), JSON.stringify(data.user));
+    await storage.set(lastPhoneKey(get().role), phone.slice(-10));
     set({ status: "signedIn", user: data.user });
     return { created: data.created };
   },
 
   refreshMe: async () => {
     const me = await api.get<User>("/auth/me/");
-    await SecureStore.setItemAsync(userKey(get().role), JSON.stringify(me));
+    await storage.set(userKey(get().role), JSON.stringify(me));
     set({ user: me });
   },
 
   setUser: (u) => {
-    SecureStore.setItemAsync(userKey(get().role), JSON.stringify(u));
+    storage.set(userKey(get().role), JSON.stringify(u));
     set({ user: u });
   },
+
+  lastPhone: () => storage.get(lastPhoneKey(get().role)),
 
   logout: async () => {
     const refresh = await getRefreshToken();
     if (refresh) api.post("/auth/logout/", { refresh }).catch(() => {});
     await clearTokens();
-    await SecureStore.deleteItemAsync(userKey(get().role));
+    await storage.remove(userKey(get().role));
     queryClient.clear();
     set({ status: "signedOut", user: null });
   },
