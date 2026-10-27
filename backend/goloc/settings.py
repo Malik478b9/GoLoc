@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.adminops",
     "apps.itineraries",
     "apps.assist",
+    "apps.discover",
 ]
 
 MIDDLEWARE = [

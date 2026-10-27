@@ -4,7 +4,7 @@ import {
   palette, Quote, radius, Rating, Row, Screen, space, Stepper, T, TIER_LABEL, titleCase, tripDays,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -23,11 +23,13 @@ const INTERESTS = ["food", "heritage", "culture", "adventure", "photography", "n
 const LANGS = ["English", "Hindi", "Telugu", "Tamil", "Urdu", "Rajasthani"];
 
 export default function BuildTrip() {
+  // Set when the trip starts from a home-screen poster.
+  const preset = useLocalSearchParams<{ city?: string; spot?: string; interests?: string; kind?: "experience" | "guide" | "package" }>();
   const current = useCity();
   const cities = useCities();
   const [step, setStep] = useState(0);
-  const [city, setCity] = useState<string | undefined>(current?.slug);
-  const [kind, setKind] = useState<"experience" | "guide" | "package">("experience");
+  const [city, setCity] = useState<string | undefined>(preset.city ?? current?.slug);
+  const [kind, setKind] = useState<"experience" | "guide" | "package">(preset.kind ?? "experience");
   const [tier, setTier] = useState<"normal" | "medium" | "lavish">("medium");
   const [date, setDate] = useState<string | undefined>(isoDate(new Date(Date.now() + 3 * 86400000)));
   const [end, setEnd] = useState<string | undefined>();
@@ -35,7 +37,7 @@ export default function BuildTrip() {
   const datesReady = !!date && (!multiDay || !!end);
   const whenLabel = date ? (multiDay && end ? `${dateRange(date, end)} · ${tripDays(date, end)} days` : longDate(date)) : "";
   const [guests, setGuests] = useState(2);
-  const [interests, setInterests] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>(() => (preset.interests ? preset.interests.split(",").filter((i) => INTERESTS.includes(i)) : []));
   const [languages, setLanguages] = useState<string[]>([]);
   const [budget, setBudget] = useState("");
 
@@ -51,6 +53,15 @@ export default function BuildTrip() {
   const steps = [
     // 0 — what kind of trip
     <View key="0" style={{ gap: space.md }}>
+      {preset.spot ? (
+        <View style={styles.spot}>
+          <Ionicons name="location" size={18} color={palette.white} />
+          <View style={{ flex: 1 }}>
+            <T variant="label" color={palette.marigold}>Your trip starts here</T>
+            <T variant="h2" color={palette.white}>{preset.spot}</T>
+          </View>
+        </View>
+      ) : null}
       <T variant="h2">Where to?</T>
       <View style={styles.wrap}>
         {(cities.data ?? []).map((c) => <Chip key={c.id} label={c.name} active={(city ?? current?.slug) === c.slug} onPress={() => setCity(c.slug)} />)}
@@ -181,6 +192,7 @@ export default function BuildTrip() {
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  spot: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: palette.night, borderRadius: radius.lg, padding: space.lg },
   option: { flexDirection: "row", alignItems: "center", gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1.5, borderColor: palette.line, backgroundColor: palette.paper },
   optionActive: { borderColor: palette.rickshaw, backgroundColor: palette.rickshawSoft },
   optIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: palette.white, alignItems: "center", justifyContent: "center" },

@@ -301,3 +301,34 @@ export type Itinerary = ItinerarySummary & {
   departure: Partial<{ mode: string; point: string; time: string; reference: string }>;
   captain: { id: string; code: string; name: string; avatar: string | null; captain_type: CaptainType };
 };
+
+// ---------------------------------------------------------------- discover (home posters)
+export type TripPoster = {
+  key: string;
+  name: string;
+  city_slug: string;
+  city_name: string;
+  state: string;
+  title: string;
+  tagline: string;
+  why_now: string;
+  vibes: string[];
+  best_months: string;
+  in_season: boolean;
+  season_fit: number;
+  event: string | null;
+  distance_km: number | null;
+  travel_hint: string;
+  image: string | null;
+  image_credit: string;
+  /** What "Build my trip" starts with when the poster is tapped. */
+  build: { city: string; spot: string; interests: string[]; kind: "experience" | "guide" | "package" };
+};
+export type DiscoverFeed = {
+  season: { key: "winter" | "summer" | "monsoon" | "autumn"; label: string; month: string };
+  from_city: { slug: string; name: string } | null;
+  hero: { headline: string; subhead: string; poster: TripPoster | null };
+  rails: { key: string; title: string; subtitle: string; items: TripPoster[] }[];
+  /** True when the copy was written by AI this month. */
+  ai: boolean;
+};

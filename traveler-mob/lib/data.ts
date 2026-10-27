@@ -1,4 +1,4 @@
-import { api, CaptainCard, CaptainDetail, City, Paginated, Post, useAuth } from "@goloc/core";
+import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, Paginated, Post, useAuth } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 
@@ -36,6 +36,18 @@ export function useDiscovery(params: Record<string, string | undefined>) {
     queryKey: ["captains", clean],
     queryFn: () => api.get<Paginated<CaptainCard>>("/captains/", clean),
     placeholderData: (prev) => prev,
+  });
+}
+
+/** Seasonal, distance-aware trip posters for the home screen. */
+export function useDiscoverFeed(city?: string) {
+  return useQuery({
+    queryKey: ["discover", city],
+    queryFn: () => api.get<DiscoverFeed>("/discover/", { city }),
+    enabled: !!city,
+    staleTime: 10 * 60_000,
+    // The AI copy is written in the background on the first visit of the month: pick it up shortly after.
+    refetchInterval: (q) => (q.state.data && !q.state.data.ai && q.state.dataUpdateCount < 4 ? 15_000 : false),
   });
 }
 

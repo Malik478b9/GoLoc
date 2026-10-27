@@ -6,7 +6,8 @@ import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } fro
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CaptainRow, CategoryTile, ReelTile } from "../../../lib/cards";
-import { changeCity, useCities, useCity, useDiscovery, useFeed } from "../../../lib/data";
+import { changeCity, useCities, useCity, useDiscovery, useDiscoverFeed, useFeed } from "../../../lib/data";
+import { HeroPoster, PosterRail } from "../../../lib/discover";
 
 const CATEGORIES = ["food", "heritage", "culture", "adventure", "photography", "nature", "shopping", "spiritual"];
 
@@ -17,6 +18,9 @@ export default function Discover() {
   const unread = useUnreadCount();
   const feed = useFeed(city?.slug);
   const top = useDiscovery({ city: city?.slug, page_size: "6" });
+  const discover = useDiscoverFeed(city?.slug);
+  const rails = discover.data?.rails ?? [];
+  const hero = discover.data?.hero;
   const [cityOpen, setCityOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const first = (user?.full_name || "").split(" ")[0];
@@ -34,7 +38,7 @@ export default function Discover() {
             tintColor={palette.rickshaw}
             onRefresh={async () => {
               setRefreshing(true);
-              await Promise.all([feed.refetch(), top.refetch()]);
+              await Promise.all([feed.refetch(), top.refetch(), discover.refetch()]);
               setRefreshing(false);
             }}
           />
@@ -56,6 +60,12 @@ export default function Discover() {
           <T variant="label" color={palette.rickshaw}>{greet}{first ? `, ${first}` : ""}</T>
           <T variant="display" style={{ marginTop: 4 }}>Where will a local take you next?</T>
 
+          {hero?.poster ? (
+            <HeroPoster p={hero.poster} headline={hero.headline} subhead={hero.subhead} ai={!!discover.data?.ai} seasonLabel={discover.data!.season.label} />
+          ) : discover.isLoading ? (
+            <Skeleton h={400} r={26} style={{ marginTop: space.lg }} />
+          ) : null}
+
           <Pressable onPress={() => router.push("/explore")} style={styles.search}>
             <Ionicons name="search" size={18} color={palette.muted} />
             <T variant="body" color={palette.muted} style={{ flex: 1 }}>Search Captains, food trails, CAP-ID…</T>
@@ -69,6 +79,8 @@ export default function Discover() {
             <View style={styles.buildArrow}><Ionicons name="arrow-forward" size={20} color={palette.night} /></View>
           </Pressable>
         </View>
+
+        {rails.slice(0, 3).map((rl) => <PosterRail key={rl.key} title={rl.title} subtitle={rl.subtitle} items={rl.items} />)}
 
         <Section title="Reels from Captains" action={posts.length ? "Watch all" : undefined} onAction={() => router.push({ pathname: "/reels", params: { city: city?.slug, start: "0" } })} style={{ paddingHorizontal: space.lg }}>
           <View />
@@ -87,6 +99,8 @@ export default function Discover() {
         ) : (
           <T variant="caption" style={{ paddingHorizontal: space.lg }}>No reels in {city?.name} yet — Captains post here as they join.</T>
         )}
+
+        {rails.slice(3).map((rl) => <PosterRail key={rl.key} title={rl.title} subtitle={rl.subtitle} items={rl.items} />)}
 
         <Section title="What are you into?" style={{ paddingHorizontal: space.lg }}>
           <View style={styles.categories}>
