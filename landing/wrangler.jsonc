@@ -1,0 +1,9 @@
+// Cloudflare Workers config: serves this folder as a static site (goloc.in).
+{
+  "name": "goloc",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./",
+    "not_found_handling": "single-page-application"
+  }
+}
