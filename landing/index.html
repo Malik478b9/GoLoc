@@ -547,11 +547,17 @@
     data._template = "table";
     data._replyto = data.email;
     btn.disabled = true; btn.textContent = "Sending…";
+    // The mail service can be slow; reassure after a few seconds and give up after 30.
+    var ctl = new AbortController();
+    var slow = setTimeout(function () { btn.textContent = "Still sending, almost there…"; }, 4000);
+    var stop = setTimeout(function () { ctl.abort(); }, 30000);
     fetch("https://formsubmit.co/ajax/info@goloc.in", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      signal: ctl.signal
     })
+      .finally(function () { clearTimeout(slow); clearTimeout(stop); })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (String(res.success) !== "true") throw new Error(res.message || "Failed");
