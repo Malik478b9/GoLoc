@@ -74,6 +74,9 @@ class Booking(models.Model):
 
     start_pin = models.CharField(max_length=4, blank=True, help_text="Traveler shows it; Captain enters it to start.")
     share_token = models.CharField(max_length=32, unique=True, default=_share_token)
+    # The traveler's consent to show their phone number to the Captain (only ever on a paid booking).
+    traveler_shares_contact = models.BooleanField(default=False)
+    contact_shared_at = models.DateTimeField(null=True, blank=True)
 
     request_expires_at = models.DateTimeField(null=True, blank=True)
     payment_due_at = models.DateTimeField(null=True, blank=True)

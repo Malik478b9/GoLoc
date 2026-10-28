@@ -40,5 +40,6 @@ public_urlpatterns = [
     path("<uuid:pk>/save/", views.SaveToggleView.as_view(), name="captain-save"),
     path("<str:id_or_code>/", views.CaptainDetailView.as_view(), name="captain-detail"),
     path("<str:id_or_code>/calendar/", views.CaptainCalendarView.as_view(), name="captain-calendar"),
+    path("<str:id_or_code>/next-available/", views.NextAvailableView.as_view(), name="captain-next-available"),
     path("<str:id_or_code>/itineraries/", itinerary_views.CaptainItinerariesView.as_view(), name="captain-itineraries-public"),
 ]

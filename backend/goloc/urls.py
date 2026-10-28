@@ -6,7 +6,6 @@ from django.urls import include, path
 from django.views.static import serve
 
 from apps.captains.urls import captain_urlpatterns, public_urlpatterns
-from apps.discover.views import DiscoverView
 from apps.itineraries.views import PublicItineraryView, document_page, poster_page
 from apps.payments.urls import page_urlpatterns as pay_pages
 from apps.trips.views import share_page
@@ -42,7 +41,7 @@ api = [
     path("admin/", include("apps.adminops.urls")),
     path("itineraries/<uuid:pk>/", PublicItineraryView.as_view(), name="itinerary-public"),
     path("ai/", include("apps.assist.urls")),
-    path("discover/", DiscoverView.as_view(), name="discover"),
+    path("discover/", include("apps.discover.urls")),
 ]
 
 urlpatterns = [

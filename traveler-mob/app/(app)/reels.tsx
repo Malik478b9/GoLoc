@@ -106,17 +106,17 @@ function ReelItem({ p, active, height }: { p: Post; active: boolean; height: num
 }
 
 export default function Reels() {
-  const { city, captain, start } = useLocalSearchParams<{ city?: string; captain?: string; start?: string }>();
+  const { city, captain, start, kind } = useLocalSearchParams<{ city?: string; captain?: string; start?: string; kind?: "reel" | "photo" }>();
   const { height, width } = useWindowDimensions();
   // Desktop: a centred 9:16 column, like reels on the web.
   const columnW = Math.min(width, Math.round(height * 0.5625), 520);
   const insets = useSafeAreaInsets();
   const [active, setActive] = useState(Number(start ?? 0));
   const q = useInfiniteQuery({
-    queryKey: ["feed", city, captain, "infinite"],
+    queryKey: ["feed", city, captain, kind, "infinite"],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) =>
-      pageParam ? (await http.get<Paginated<Post>>(pageParam)).data : await api.get<Paginated<Post>>("/social/feed/", { city, captain, page_size: 12 }),
+      pageParam ? (await http.get<Paginated<Post>>(pageParam)).data : await api.get<Paginated<Post>>("/social/feed/", { city, captain, kind, page_size: 12 }),
     getNextPageParam: (last) => last.next,
   });
   const posts = q.data?.pages.flatMap((p) => p.results) ?? [];

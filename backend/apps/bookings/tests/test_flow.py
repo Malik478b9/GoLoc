@@ -392,3 +392,47 @@ class GuideHireTests(FlowBase):
         self.assertTrue(guides[0]["has_guide"])
         captains = self.client.get("/api/v1/captains/?type=captain").json()["results"]
         self.assertNotIn(self.guide.code, [c["code"] for c in captains])
+
+
+class PrivacyAndAvailabilityTests(FlowBase):
+    def test_traveler_number_needs_payment_and_consent(self):
+        booking = self.booked_and_paid()
+        url = f"/api/v1/bookings/{booking.code}/"
+        seen = self.cap.get(url).data["traveler"]
+        self.assertNotIn("phone", seen, "paid is not enough: the traveler must agree")
+        self.assertNotIn("id", seen)
+        self.assertRegex(seen["phone_masked"], r"^\+91 \d\d••• ••\d{3}$")
+        self.assertEqual(seen["name"], "Ananya Reddy")
+
+        self.assertEqual(self.cap.post(f"{url}share-contact/", {"share": True}, format="json").status_code, 403)
+        res = self.trav.post(f"{url}share-contact/", {"share": True}, format="json")
+        self.assertTrue(res.data["traveler_shares_contact"])
+        self.assertEqual(self.cap.get(url).data["traveler"]["phone"], self.traveler.phone_number)
+        self.assertTrue(Notification.objects.filter(user=self.captain.user, kind="contact_shared").exists())
+
+        self.trav.post(f"{url}share-contact/", {"share": False}, format="json")
+        self.assertNotIn("phone", self.cap.get(url).data["traveler"])
+
+    def test_cannot_share_before_payment(self):
+        code = self.request().data["code"]
+        res = self.trav.post(f"/api/v1/bookings/{code}/share-contact/", {"share": True}, format="json")
+        self.assertEqual(res.status_code, 409)
+
+    def test_nearest_available_dates(self):
+        from apps.captains.services import nearest_available
+
+        start = t.next_weekday(10)
+        self.captain.blocked_dates.create(date=start)
+        self.captain.blocked_dates.create(date=start + timedelta(days=1))
+        options = nearest_available(self.captain, start, 1, count=3)
+        self.assertEqual(len(options), 3)
+        self.assertTrue(all(o["start_date"] not in (start, start + timedelta(days=1)) for o in options))
+        self.assertEqual(sorted(abs(o["shift_days"]) for o in options), [abs(o["shift_days"]) for o in options], "nearest first")
+        res = self.client.get(f"/api/v1/captains/{self.captain.code}/next-available/?start={start}&days=2")
+        self.assertEqual(res.status_code, 200)
+        for o in res.json()["options"]:
+            self.assertNotEqual(o["start_date"], str(start))
+
+    def test_profile_shows_everything_public(self):
+        res = self.client.get(f"/api/v1/captains/{self.captain.code}/").json()
+        self.assertTrue(set(res["stats"]) >= {"trips_completed", "reviews", "reels", "photos", "itineraries_prepared"})

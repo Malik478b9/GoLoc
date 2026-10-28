@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   api, Avatar, Badge, Button, Calendar, CaptainCard, Card, Chip, DateRangeCalendar, dateRange, Empty, Field, isoDate, longDate, money,
-  palette, Quote, radius, Rating, Row, Screen, space, Stepper, T, TIER_LABEL, titleCase, tripDays,
+  palette, Quote, radius, Rating, Row, Screen, shortDate, space, Stepper, T, TIER_LABEL, titleCase, tripDays,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,6 +17,8 @@ type Match = {
   match: number;
   available: boolean;
   unavailable_reason: string | null;
+  /** When unavailable: the nearest trips of the same length they can take. */
+  next_available: { start_date: string; end_date: string; shift_days: number }[];
   within_budget: boolean;
 };
 const INTERESTS = ["food", "heritage", "culture", "adventure", "photography", "nature", "shopping", "spiritual", "nightlife", "family", "wildlife", "trekking"];
@@ -100,8 +102,8 @@ export default function BuildTrip() {
       <Card>
         {multiDay ? (
           <>
-            <T variant="h2">Arrival and return</T>
-            <T variant="caption" style={{ marginBottom: space.md }}>Tap the day you arrive, then the day you leave.</T>
+            <T variant="h2">Arrival and departure</T>
+            <T variant="caption" style={{ marginBottom: space.md }}>Pick the day you arrive, then the day you leave.</T>
             <DateRangeCalendar start={date} end={end} onChange={(s, e) => { setDate(s); setEnd(e); }} maxSpan={30} />
           </>
         ) : (
@@ -135,7 +137,9 @@ export default function BuildTrip() {
             serviceId: m.service.id, date: m.available ? date : undefined, end: m.available && kind === "guide" ? end : undefined, guests: String(guests), tier,
           } })}>
             <Row gap={space.md}>
-              <Avatar uri={m.captain.avatar} name={m.captain.name} size={52} verified />
+              <Pressable onPress={() => router.push(`/captain/${m.captain.id}`)} hitSlop={6} accessibilityLabel={`${m.captain.name}'s profile`}>
+                <Avatar uri={m.captain.avatar} name={m.captain.name} size={52} verified />
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Row style={{ justifyContent: "space-between" }}>
                   <T variant="h2">{m.captain.name}</T>
@@ -149,7 +153,23 @@ export default function BuildTrip() {
               {m.available ? (
                 <Badge label="Available" icon="checkmark-circle" bg={palette.successSoft} fg={palette.success} />
               ) : (
-                <Badge label={m.unavailable_reason ?? "Unavailable"} bg={palette.coralSoft} fg={palette.coral} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Badge label={m.unavailable_reason ?? "Unavailable"} bg={palette.coralSoft} fg={palette.coral} />
+                  {m.next_available.length ? (
+                    <Row gap={6} style={{ flexWrap: "wrap" }}>
+                      <T variant="caption">Free:</T>
+                      {m.next_available.map((o) => (
+                        <Chip
+                          key={o.start_date}
+                          label={o.start_date === o.end_date ? shortDate(o.start_date) : dateRange(o.start_date, o.end_date)}
+                          onPress={() => router.push({ pathname: "/book/[serviceId]", params: {
+                            serviceId: m.service.id, date: o.start_date, end: kind === "guide" ? o.end_date : undefined, guests: String(guests), tier,
+                          } })}
+                        />
+                      ))}
+                    </Row>
+                  ) : null}
+                </View>
               )}
               <View style={{ alignItems: "flex-end" }}>
                 <T variant="h2">{money(m.quote.total)}</T>

@@ -103,6 +103,17 @@ export type CaptainDetail = CaptainCard & {
   reviews: Review[];
   /** Published default itineraries, newest first. */
   itineraries: ItinerarySummary[];
+  stats: {
+    trips_completed: number;
+    rating_avg: string;
+    reviews: number;
+    reels: number;
+    photos: number;
+    /** Every itinerary they've finished, shared or private. */
+    itineraries_prepared: number;
+    years_experience: number;
+    member_since: string;
+  };
 };
 
 export type Quote = {
@@ -138,7 +149,8 @@ export type Booking = {
   start_time: string;
   title: string;
   captain: { id: string; code: string; name: string; avatar: string | null; phone?: string };
-  traveler: { id: string; name: string; phone?: string };
+  /** Captains see the name; the number only once the trip is paid and the traveler has shared it. */
+  traveler: { id?: string; name: string; phone?: string; phone_masked?: string };
   city_name: string;
   fare: number;
   total: number;
@@ -164,7 +176,8 @@ export type BookingDetail = Booking & {
   share_url: string | null;
   review: { rating: number; comment: string; captain_reply: string } | null;
   events: { kind: string; message: string; actor_role: string; created_at: string }[];
-  actions: Partial<Record<"accept" | "decline" | "cancel" | "start" | "complete" | "track" | "pay" | "sos" | "review" | "message", boolean>>;
+  actions: Partial<Record<"accept" | "decline" | "cancel" | "start" | "complete" | "track" | "pay" | "sos" | "review" | "message" | "share_contact", boolean>>;
+  traveler_shares_contact?: boolean;
 };
 
 export type LatLng = { lat: number; lng: number; accuracy_m?: number | null; heading?: number | null; at?: string };
@@ -321,14 +334,18 @@ export type TripPoster = {
   travel_hint: string;
   image: string | null;
   image_credit: string;
+  /** Saved for later by this traveler. */
+  saved: boolean;
   /** What "Build my trip" starts with when the poster is tapped. */
   build: { city: string; spot: string; interests: string[]; kind: "experience" | "guide" | "package" };
 };
 export type DiscoverFeed = {
   season: { key: "winter" | "summer" | "monsoon" | "autumn"; label: string; month: string };
   from_city: { slug: string; name: string } | null;
-  hero: { headline: string; subhead: string; poster: TripPoster | null };
-  rails: { key: string; title: string; subtitle: string; items: TripPoster[] }[];
+  headline: string;
+  subhead: string;
+  /** Seven trips: in season first, nearest first, at most two per city. */
+  picks: TripPoster[];
   /** True when the copy was written by AI this month. */
   ai: boolean;
 };

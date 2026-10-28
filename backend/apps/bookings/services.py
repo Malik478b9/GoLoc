@@ -250,6 +250,25 @@ def complete_trip(booking, user, role="captain") -> Booking:
     return booking
 
 
+# ---------------------------------------------------------------- privacy
+def share_contact(booking, traveler, share: bool) -> Booking:
+    """The traveler lets their Captain see (or hides) their phone number. Only for paid, active trips."""
+    with transaction.atomic():
+        booking = _lock(booking)
+        _require(booking, S.CONFIRMED, S.IN_PROGRESS, message="You can share your number once the trip is paid.")
+        if booking.traveler_shares_contact == share:
+            return booking
+        booking.traveler_shares_contact = share
+        booking.contact_shared_at = timezone.now() if share else None
+        booking.save(update_fields=["traveler_shares_contact", "contact_shared_at", "updated_at"])
+        log(booking, traveler, "traveler", "contact_shared" if share else "contact_hidden",
+            "Traveler shared their phone number" if share else "Traveler hid their phone number")
+    if share:
+        notify(booking.captain.user, "captain", "contact_shared", f"{traveler.full_name or 'Your traveler'} shared their number",
+               f"You can now call them about {booking.code}.", {"booking_id": booking.id})
+    return booking
+
+
 # ---------------------------------------------------------------- housekeeping
 def expire_stale(now=None) -> int:
     now = now or timezone.now()

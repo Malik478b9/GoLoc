@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CaptainRow, CategoryTile, ReelTile } from "../../../lib/cards";
 import { changeCity, useCities, useCity, useDiscovery, useDiscoverFeed, useFeed } from "../../../lib/data";
-import { HeroPoster, PosterRail } from "../../../lib/discover";
+import { PosterRail } from "../../../lib/discover";
 
 const CATEGORIES = ["food", "heritage", "culture", "adventure", "photography", "nature", "shopping", "spiritual"];
 
@@ -19,8 +19,7 @@ export default function Discover() {
   const feed = useFeed(city?.slug);
   const top = useDiscovery({ city: city?.slug, page_size: "6" });
   const discover = useDiscoverFeed(city?.slug);
-  const rails = discover.data?.rails ?? [];
-  const hero = discover.data?.hero;
+  const picks = discover.data?.picks ?? [];
   const [cityOpen, setCityOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const first = (user?.full_name || "").split(" ")[0];
@@ -57,20 +56,26 @@ export default function Discover() {
         </View>
 
         <View style={{ paddingHorizontal: space.lg }}>
+          <Pressable onPress={() => router.push("/explore")} style={[styles.search, { marginTop: 0, marginBottom: space.lg }]}>
+            <Ionicons name="search" size={18} color={palette.muted} />
+            <T variant="body" color={palette.muted} style={{ flex: 1 }}>Search Captains, guides, trips, CAP-ID…</T>
+          </Pressable>
           <T variant="label" color={palette.rickshaw}>{greet}{first ? `, ${first}` : ""}</T>
           <T variant="display" style={{ marginTop: 4 }}>Where will a local take you next?</T>
+        </View>
 
-          {hero?.poster ? (
-            <HeroPoster p={hero.poster} headline={hero.headline} subhead={hero.subhead} ai={!!discover.data?.ai} seasonLabel={discover.data!.season.label} />
-          ) : discover.isLoading ? (
-            <Skeleton h={400} r={26} style={{ marginTop: space.lg }} />
-          ) : null}
+        {picks.length ? (
+          <PosterRail
+            title={discover.data!.headline}
+            subtitle={discover.data!.subhead}
+            badge={discover.data!.ai ? `AI picks · ${discover.data!.season.label}` : `${discover.data!.season.label} picks`}
+            items={picks}
+          />
+        ) : discover.isLoading ? (
+          <Row style={{ paddingHorizontal: space.lg, marginTop: space.lg }} gap={12}>{[0, 1].map((i) => <Skeleton key={i} w={250} h={340} r={24} />)}</Row>
+        ) : null}
 
-          <Pressable onPress={() => router.push("/explore")} style={styles.search}>
-            <Ionicons name="search" size={18} color={palette.muted} />
-            <T variant="body" color={palette.muted} style={{ flex: 1 }}>Search Captains, food trails, CAP-ID…</T>
-          </Pressable>
-
+        <View style={{ paddingHorizontal: space.lg }}>
           <Pressable onPress={() => router.push("/build-trip")} style={styles.buildCard}>
             <View style={{ flex: 1 }}>
               <T variant="h2" color={palette.white}>Build my trip</T>
@@ -79,8 +84,6 @@ export default function Discover() {
             <View style={styles.buildArrow}><Ionicons name="arrow-forward" size={20} color={palette.night} /></View>
           </Pressable>
         </View>
-
-        {rails.slice(0, 3).map((rl) => <PosterRail key={rl.key} title={rl.title} subtitle={rl.subtitle} items={rl.items} />)}
 
         <Section title="Reels from Captains" action={posts.length ? "Watch all" : undefined} onAction={() => router.push({ pathname: "/reels", params: { city: city?.slug, start: "0" } })} style={{ paddingHorizontal: space.lg }}>
           <View />
@@ -99,8 +102,6 @@ export default function Discover() {
         ) : (
           <T variant="caption" style={{ paddingHorizontal: space.lg }}>No reels in {city?.name} yet — Captains post here as they join.</T>
         )}
-
-        {rails.slice(3).map((rl) => <PosterRail key={rl.key} title={rl.title} subtitle={rl.subtitle} items={rl.items} />)}
 
         <Section title="What are you into?" style={{ paddingHorizontal: space.lg }}>
           <View style={styles.categories}>

@@ -2,8 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { forwardRef, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, TextInputProps, View } from "react-native";
 
-import { addDays, isoDate, shortDate, tripDays } from "../format";
+import { addDays, isoDate, longDate, shortDate, tripDays } from "../format";
 import { fonts, palette, radius, space } from "../theme";
+import { Sheet } from "./feedback";
 import { Row, T, useAccent } from "./primitives";
 
 export type FieldProps = TextInputProps & { label?: string; error?: string; hint?: string; prefix?: string; labelRight?: React.ReactNode };
@@ -160,9 +161,28 @@ export function Calendar({ value, onChange, disabled = [], minDate, maxDays = 18
 }
 
 /**
- * Arrival → return picker. First tap sets arrival, second tap sets return.
- * With `fixedDays` (a package of set length) one tap fills the whole trip.
- * A range can't cross a greyed-out date: the trip needs every day free.
+ * The nearest trips of the same length with every day free, nearest first.
+ * `blocked` = days that can't be booked; searches up to `window` days either side.
+ */
+export function nearestFreeRanges(blocked: Set<string>, start: string, days: number, { count = 3, window = 60, earliest, latest }: { count?: number; window?: number; earliest: string; latest: string }) {
+  const out: { start: string; end: string; shift: number }[] = [];
+  const shifts = Array.from({ length: window * 2 + 1 }, (_, i) => i - window).filter((s) => s !== 0).sort((a, b) => Math.abs(a) - Math.abs(b) || b - a);
+  for (const shift of shifts) {
+    const first = addDays(start, shift);
+    const last = addDays(first, days - 1);
+    if (first < earliest || last > latest) continue;
+    let ok = true;
+    for (let d = first; d <= last; d = addDays(d, 1)) if (blocked.has(d)) { ok = false; break; }
+    if (ok) out.push({ start: first, end: last, shift });
+    if (out.length >= count) break;
+  }
+  return out;
+}
+
+/**
+ * Arrival and departure, each on its own calendar. With `fixedDays` (a package of set
+ * length) the departure follows the arrival. When the Captain is busy on any day of
+ * the trip, the nearest free dates of the same length are offered as one-tap fixes.
  */
 export function DateRangeCalendar({ start, end, onChange, disabled = [], minDate, maxDays = 180, fixedDays, maxSpan = 30 }: {
   start?: string; end?: string; onChange: (start: string | undefined, end: string | undefined) => void;
@@ -170,55 +190,112 @@ export function DateRangeCalendar({ start, end, onChange, disabled = [], minDate
 }) {
   const accent = useAccent();
   const blocked = useMemo(() => new Set(disabled), [disabled]);
-  const [hint, setHint] = useState<string | undefined>();
-  const clashes = (from: string, to: string) => {
-    for (let d = from; d <= to; d = addDays(d, 1)) if (blocked.has(d)) return true;
-    return false;
-  };
+  const today = isoDate(minDate ?? new Date());
+  const latest = addDays(today, maxDays);
+  const effectiveEnd = fixedDays && start ? addDays(start, fixedDays - 1) : end;
+  const days = start && effectiveEnd ? tripDays(start, effectiveEnd) : 0;
+  const busy = useMemo(() => {
+    if (!start || !effectiveEnd) return [] as string[];
+    const out: string[] = [];
+    for (let d = start; d <= effectiveEnd; d = addDays(d, 1)) if (blocked.has(d)) out.push(d);
+    return out;
+  }, [start, effectiveEnd, blocked]);
+  const options = useMemo(
+    () => (busy.length && start && days ? nearestFreeRanges(blocked, start, days, { earliest: today, latest }) : []),
+    [busy.length, start, days, blocked, today, latest],
+  );
 
-  const pick = (iso: string) => {
-    setHint(undefined);
+  // Which calendar is open: tap a box to open it; picking the arrival moves straight on to the departure.
+  const [open, setOpen] = useState<"arrival" | "departure" | null>(null);
+
+  const pickArrival = (iso: string) => {
     if (fixedDays) {
-      const to = addDays(iso, fixedDays - 1);
-      if (clashes(iso, to)) return setHint(`This trip runs ${fixedDays} days and one of them is unavailable. Try another start.`);
-      return onChange(iso, to);
+      onChange(iso, addDays(iso, fixedDays - 1));
+      return setOpen(null);
     }
-    if (!start || end || iso < start) return onChange(iso, undefined);
-    if (tripDays(start, iso) > maxSpan) return setHint(`Up to ${maxSpan} days per booking.`);
-    if (clashes(start, iso)) {
-      setHint("Some days in between are unavailable, so we started a new trip from that date.");
-      return onChange(iso, undefined);
-    }
-    onChange(start, iso);
+    // Keep the departure if it still makes sense; otherwise ask for it next.
+    const keep = end && end >= iso && tripDays(iso, end) <= maxSpan ? end : undefined;
+    onChange(iso, keep);
+    setOpen(keep ? null : "departure");
   };
 
-  const days = start && end ? tripDays(start, end) : 0;
+  const box = (which: "arrival" | "departure", value: string | undefined, placeholder: string, locked = false) => {
+    const active = open === which;
+    return (
+      <Pressable
+        disabled={locked}
+        onPress={() => setOpen(which === "departure" && !start ? "arrival" : which)}
+        style={[styles.dateBox, (active || (!value && !locked && (which === "arrival" || !!start))) && { borderColor: accent.main }]}
+        accessibilityRole="button"
+        accessibilityLabel={`${which === "arrival" ? "Arrival" : "Departure"} date${value ? `, ${longDate(value)}` : ""}`}
+      >
+        <Row gap={6}>
+          <Ionicons name={which === "arrival" ? "airplane" : "exit-outline"} size={14} color={accent.main} />
+          <T variant="label">{which === "arrival" ? "Arrival" : "Departure"}</T>
+        </Row>
+        <T variant="bodyBold" color={value ? palette.ink : palette.muted} style={{ marginTop: 4 }} numberOfLines={1}>
+          {value ? shortDate(value) : placeholder}
+        </T>
+        <T variant="caption" numberOfLines={1}>
+          {value ? longDate(value).split(",")[0] : locked ? `Set by the ${fixedDays}-day trip` : which === "arrival" ? "Tap to choose" : start ? "Tap to choose" : "After arrival"}
+        </T>
+      </Pressable>
+    );
+  };
+
   return (
-    <MonthGrid
-      minDate={minDate}
-      maxDays={maxDays}
-      disabled={blocked}
-      look={(iso) => ({ edge: iso === start || iso === end, inside: !!start && !!end && iso > start && iso < end })}
-      onPick={pick}
-      footer={
-        <View style={{ marginTop: space.md }}>
-          <Row gap={space.md}>
-            {(["Arrival", "Return"] as const).map((label, i) => {
-              const v = i === 0 ? start : end;
-              const waiting = i === 0 ? !start : !!start && !end;
-              return (
-                <View key={label} style={[styles.rangeBox, waiting && { borderColor: accent.main }]}>
-                  <T variant="caption">{label}</T>
-                  <T variant="bodyBold" color={v ? palette.ink : palette.muted}>{v ? shortDate(v) : i === 0 ? "Pick a date" : "Tap return day"}</T>
-                </View>
-              );
-            })}
-          </Row>
-          {days ? <T variant="small" color={accent.main} style={{ marginTop: 6 }}>{days} day{days > 1 ? "s" : ""}{fixedDays ? " · set by this package" : ""}</T> : null}
-          {hint ? <T variant="caption" color={palette.coral} style={{ marginTop: 4 }}>{hint}</T> : null}
+    <View style={{ gap: space.md }}>
+      <Row gap={space.sm} style={{ alignItems: "stretch" }}>
+        {box("arrival", start, "Add date")}
+        <View style={{ justifyContent: "center" }}><Ionicons name="arrow-forward" size={18} color={palette.muted} /></View>
+        {box("departure", effectiveEnd, fixedDays ? "—" : "Add date", !!fixedDays)}
+      </Row>
+
+      {days ? <T variant="small" color={accent.main}>{days} day{days > 1 ? "s" : ""}{days > 1 ? ` · ${days - 1} night${days > 2 ? "s" : ""}` : ""}{fixedDays ? " · set by this trip" : ""}</T> : null}
+
+      <Sheet visible={open !== null} onClose={() => setOpen(null)} title={open === "departure" ? "When do you leave?" : "When do you arrive?"}>
+        {open === "departure" && start ? (
+          <>
+            <T variant="caption" style={{ marginBottom: space.md }}>Arriving {longDate(start)}. Up to {maxSpan} days.</T>
+            <Calendar
+              key={start}
+              value={end}
+              onChange={(iso) => {
+                onChange(start, iso);
+                setOpen(null);
+              }}
+              disabled={disabled}
+              minDate={new Date(Number(start.slice(0, 4)), Number(start.slice(5, 7)) - 1, Number(start.slice(8, 10)))}
+              maxDays={Math.min(maxSpan - 1, Math.max(0, tripDays(start, latest) - 1))}
+            />
+          </>
+        ) : (
+          <Calendar value={start} onChange={pickArrival} disabled={disabled} minDate={minDate} maxDays={maxDays} />
+        )}
+      </Sheet>
+      {busy.length ? (
+        <View style={{ backgroundColor: palette.warningSoft, borderRadius: radius.md, padding: space.md }}>
+          <T variant="bodyBold" color={palette.warning}>
+            Not available on {busy.length === 1 ? shortDate(busy[0]) : `${busy.length} of these days`}
+          </T>
+          {options.length ? (
+            <>
+              <T variant="caption" style={{ marginTop: 2, marginBottom: space.sm }}>Nearest dates when every day is free:</T>
+              <Row gap={8} style={{ flexWrap: "wrap" }}>
+                {options.map((o) => (
+                  <Pressable key={o.start} onPress={() => onChange(o.start, o.end)} style={[styles.suggest, { borderColor: accent.main }]}>
+                    <T variant="small" style={{ fontFamily: fonts.bold }}>{o.start === o.end ? shortDate(o.start) : `${shortDate(o.start)} – ${shortDate(o.end)}`}</T>
+                    <T style={{ fontSize: 11, color: palette.muted }}>{o.shift > 0 ? `${o.shift} day${o.shift > 1 ? "s" : ""} later` : `${-o.shift} day${o.shift < -1 ? "s" : ""} earlier`}</T>
+                  </Pressable>
+                ))}
+              </Row>
+            </>
+          ) : (
+            <T variant="caption" style={{ marginTop: 2 }}>No free dates nearby. Try a shorter trip or another Captain.</T>
+          )}
         </View>
-      }
-    />
+      ) : null}
+    </View>
   );
 }
 
@@ -237,5 +314,6 @@ const styles = StyleSheet.create({
   day: { flex: 1, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   dayText: { fontFamily: fonts.medium, fontSize: 15, color: palette.ink },
   dayOff: { color: palette.lineStrong, textDecorationLine: "line-through" },
-  rangeBox: { flex: 1, padding: space.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: palette.line, backgroundColor: palette.white },
+  dateBox: { flex: 1, borderWidth: 1.5, borderColor: palette.line, borderRadius: radius.md, backgroundColor: palette.white, paddingHorizontal: space.md, paddingVertical: space.sm + 2 },
+  suggest: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.white },
 });

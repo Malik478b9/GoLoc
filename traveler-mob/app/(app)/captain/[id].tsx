@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Avatar, Badge, Button, Card, Empty, ErrorView, Header, Loading, money, openChat, palette, PosterCard, radius, Rating, Row, Segmented, Service,
+  api, Avatar, Badge, Button, Card, Empty, ErrorView, Header, Loading, money, openChat, Paginated, palette, Post, PosterCard, radius, Rating, Review, Row, Segmented, Service, SkeletonList,
   space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
 } from "@goloc/core";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -61,7 +61,18 @@ export default function CaptainProfile() {
   const qc = useQueryClient();
   const compare = useCompare();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<"trips" | "reels" | "reviews">("trips");
+  const [tab, setTab] = useState<"trips" | "itineraries" | "reels" | "photos" | "reviews">("trips");
+  // Full lists load when their tab opens; the profile itself carries the latest few.
+  const media = useQuery({
+    queryKey: ["captain-posts", id, tab],
+    queryFn: () => api.get<Paginated<Post>>("/social/feed/", { captain: q.data!.id, kind: tab === "photos" ? "photo" : "reel", page_size: 30 }),
+    enabled: !!q.data && (tab === "reels" || tab === "photos"),
+  });
+  const reviews = useQuery({
+    queryKey: ["captain-reviews", id],
+    queryFn: () => api.get<Paginated<Review>>(`/reviews/captains/${q.data!.id}/`, { page_size: 50 }),
+    enabled: !!q.data && tab === "reviews",
+  });
   const [gridW, onGridLayout] = useMeasuredWidth(useWindowDimensions().width - space.lg * 2);
   const cols = gridW > 700 ? 5 : 3;
   const tileW = (gridW - 8 * (cols - 1)) / cols;
@@ -117,6 +128,24 @@ export default function CaptainProfile() {
           {c.vehicles.map((v, i) => <Badge key={i} label={`${v.make_model} · ${v.capacity} seats${v.has_ac ? " · AC" : ""}`} icon="car" />)}
         </Row>
         {c.bio ? <T style={{ marginTop: space.md }}>{c.bio}</T> : null}
+        {c.stats ? (
+          <View style={styles.stats}>
+            {([
+              ["Trips done", String(c.stats.trips_completed)],
+              ["Rating", Number(c.stats.rating_avg) > 0 ? Number(c.stats.rating_avg).toFixed(1) : "New"],
+              ["Reviews", String(c.stats.reviews)],
+              ["Itineraries", String(c.stats.itineraries_prepared)],
+              ["Reels", String(c.stats.reels)],
+              ["Photos", String(c.stats.photos)],
+            ] as const).map(([label, value]) => (
+              <View key={label} style={styles.stat}>
+                <T variant="h2">{value}</T>
+                <T variant="caption" style={{ fontSize: 11 }}>{label}</T>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {c.stats?.member_since ? <T variant="caption" style={{ marginTop: 6 }}>On GoLoc since {new Date(c.stats.member_since).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</T> : null}
         <Row gap={10} style={{ marginTop: space.lg }}>
           <Button title="Message" icon="chatbubble-ellipses" kind="secondary" small style={{ flex: 1 }} onPress={() => openChat({ captain_id: c.id })} />
           <Button
@@ -138,14 +167,20 @@ export default function CaptainProfile() {
             onChange={setTab}
             options={[
               { value: "trips", label: "Trips", count: c.services.length },
-              { value: "reels", label: "Reels", count: c.posts.length },
-              { value: "reviews", label: "Reviews", count: c.rating_count },
+              { value: "itineraries", label: "Plans", count: (c.itineraries ?? []).length },
+              { value: "reels", label: "Reels", count: c.stats?.reels ?? 0 },
+              { value: "photos", label: "Photos", count: c.stats?.photos ?? 0 },
+              { value: "reviews", label: "Reviews", count: c.stats?.reviews ?? c.rating_count },
             ]}
           />
         </View>
 
         <View style={{ marginTop: space.lg, gap: space.md }}>
-          {tab === "trips" && (c.itineraries ?? []).length ? (
+          {tab === "itineraries" && !(c.itineraries ?? []).length ? (
+            <Empty icon="document-text-outline" title="No sample itineraries yet"
+              body={`${c.name.split(" ")[0]} has prepared ${c.stats?.itineraries_prepared ?? 0} itinerar${c.stats?.itineraries_prepared === 1 ? "y" : "ies"} for travelers. You get your own after booking.`} />
+          ) : null}
+          {tab === "itineraries" && (c.itineraries ?? []).length ? (
             <View style={{ gap: space.sm }}>
               <T variant="h2">Sample itineraries</T>
               <T variant="caption">How {c.name.split(" ")[0]} plans these trips, day by day. Yours is tailored after you book.</T>
@@ -158,19 +193,23 @@ export default function CaptainProfile() {
           ) : null}
           {tab === "trips" &&
             (c.services.length ? c.services.map((s) => <ServiceCard key={s.id} s={s} />) : <Empty title="No trips listed yet" />)}
-          {tab === "reels" &&
-            (c.posts.length ? (
+          {(tab === "reels" || tab === "photos") &&
+            (media.isLoading ? (
+              <SkeletonList rows={2} />
+            ) : (media.data?.results ?? []).length ? (
               <View style={styles.grid} onLayout={onGridLayout}>
-                {c.posts.map((p, i) => (
-                  <ReelTile key={p.id} p={p} width={tileW} onPress={() => router.push({ pathname: "/reels", params: { captain: c.id, start: String(i) } })} />
+                {media.data!.results.map((p, i) => (
+                  <ReelTile key={p.id} p={p} width={tileW} onPress={() => router.push({ pathname: "/reels", params: { captain: c.id, start: String(i), kind: p.kind } })} />
                 ))}
               </View>
             ) : (
-              <Empty icon="film-outline" title="No reels yet" />
+              <Empty icon={tab === "photos" ? "images-outline" : "film-outline"} title={tab === "photos" ? "No photos yet" : "No reels yet"} />
             ))}
           {tab === "reviews" &&
-            (c.reviews.length ? (
-              c.reviews.map((r) => (
+            (reviews.isLoading ? (
+              <SkeletonList rows={3} />
+            ) : (reviews.data?.results ?? []).length ? (
+              reviews.data!.results.map((r) => (
                 <Card key={r.id}>
                   <Row style={{ justifyContent: "space-between" }}>
                     <T variant="bodyBold">{r.traveler_name}</T>
@@ -207,6 +246,8 @@ export default function CaptainProfile() {
 const styles = StyleSheet.create({
   tier: { flex: 1, backgroundColor: palette.sand, borderRadius: radius.sm, padding: space.sm },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  stats: { flexDirection: "row", flexWrap: "wrap", marginTop: space.lg, backgroundColor: palette.paper, borderRadius: radius.md, borderWidth: 1, borderColor: palette.line, paddingVertical: space.sm },
+  stat: { width: "33.33%", alignItems: "center", paddingVertical: space.sm },
   reply: { marginTop: space.sm, padding: space.md, backgroundColor: palette.sand, borderRadius: radius.sm },
   footer: { flexDirection: "row", alignItems: "center", gap: space.lg, paddingHorizontal: space.lg, paddingTop: space.md, backgroundColor: palette.paper, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.lineStrong },
 });

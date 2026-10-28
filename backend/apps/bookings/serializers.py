@@ -6,6 +6,12 @@ from apps.common.api import public_url
 from .models import Booking, BookingEvent
 
 
+def mask_phone(number: str) -> str:
+    """+919876543210 → +91 98••• ••210"""
+    digits = number[-10:]
+    return f"+91 {digits[:2]}••• ••{digits[-3:]}" if len(digits) == 10 else "••••••"
+
+
 def _abs(request, field):
     if not field:
         return None
@@ -40,10 +46,14 @@ class BookingListSerializer(serializers.ModelSerializer):
         return out
 
     def get_traveler(self, obj):
+        """Captains see the traveler's name only. Their number needs a paid booking and the traveler's consent."""
         t = obj.traveler
         out = {"id": t.id, "name": t.full_name or "Traveler"}
-        if self.role == "admin" or (self.role == "captain" and obj.is_paid):
+        if self.role == "admin" or (self.role == "captain" and obj.is_paid and obj.traveler_shares_contact):
             out["phone"] = t.phone_number
+        elif self.role == "captain":
+            out.pop("id")
+            out["phone_masked"] = mask_phone(t.phone_number)
         return out
 
     def to_representation(self, obj):
@@ -73,7 +83,7 @@ class BookingDetailSerializer(BookingListSerializer):
         fields = BookingListSerializer.Meta.fields + [
             "service_id", "meeting_point", "note", "service_snapshot", "insurance_fee", "insurance_policy_no", "commission",
             "cancelled_by", "cancel_reason", "refund_percent", "refunded", "accepted_at", "confirmed_at", "started_at",
-            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "itinerary", "events", "actions",
+            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "itinerary", "traveler_shares_contact", "events", "actions",
         ]
 
     def get_start_pin(self, obj):
@@ -118,6 +128,7 @@ class BookingDetailSerializer(BookingListSerializer):
                 "pay": s == S.ACCEPTED, "cancel": s in (S.REQUESTED, S.ACCEPTED, S.CONFIRMED),
                 "track": s in (S.CONFIRMED, S.IN_PROGRESS), "sos": s in (S.CONFIRMED, S.IN_PROGRESS),
                 "review": s == S.COMPLETED and getattr(obj, "review", None) is None, "message": True,
+                "share_contact": s in (S.CONFIRMED, S.IN_PROGRESS),
             }
         return {}
 

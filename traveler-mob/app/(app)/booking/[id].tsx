@@ -41,6 +41,15 @@ export default function BookingScreen() {
     onError: toastError,
   });
 
+  const consent = useMutation({
+    mutationFn: (share: boolean) => api.post<BookingDetail>(`/bookings/${id}/share-contact/`, { share }),
+    onSuccess: (b) => {
+      qc.setQueryData(["booking", id], b);
+      toast(b.traveler_shares_contact ? "Your Captain can now see your number" : "Your number is hidden again", "success");
+    },
+    onError: toastError,
+  });
+
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <Screen title="Booking"><ErrorView error={q.error} onRetry={q.refetch} /></Screen>;
   const b = q.data;
@@ -121,6 +130,32 @@ export default function BookingScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={palette.muted} />
           </Row>
+        </Card>
+      ) : null}
+
+      {/* ----- privacy: the traveler decides if the Captain sees their number ----- */}
+      {a.share_contact ? (
+        <Card style={{ marginTop: space.lg }}>
+          <Row gap={space.md}>
+            <Ionicons name={b.traveler_shares_contact ? "call" : "eye-off-outline"} size={22} color={palette.rickshaw} />
+            <View style={{ flex: 1 }}>
+              <T variant="bodyBold">{b.traveler_shares_contact ? `${b.captain.name.split(" ")[0]} can see your number` : "Your number is hidden"}</T>
+              <T variant="caption">
+                {b.traveler_shares_contact
+                  ? "They can call you about this trip. You can hide it again any time."
+                  : `${b.captain.name.split(" ")[0]} only sees your name. Share your number if you'd like them to call you.`}
+              </T>
+            </View>
+          </Row>
+          <Button
+            title={b.traveler_shares_contact ? "Hide my number" : "Share my number with my Captain"}
+            icon={b.traveler_shares_contact ? "eye-off-outline" : "call-outline"}
+            small
+            kind={b.traveler_shares_contact ? "ghost" : "secondary"}
+            loading={consent.isPending}
+            onPress={() => consent.mutate(!b.traveler_shares_contact)}
+            style={{ marginTop: space.md, alignSelf: "flex-start" }}
+          />
         </Card>
       ) : null}
 

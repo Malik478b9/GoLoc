@@ -5,6 +5,7 @@ from unittest import mock
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
+from apps.common import testing as t
 from apps.discover import service
 
 WIKI = {"query": {"normalized": [{"from": "City_Palace,_Udaipur", "to": "City Palace, Udaipur"}],
@@ -26,30 +27,27 @@ class DiscoverTests(TestCase):
         self.assertEqual(service.months_label([10, 11, 12, 1, 2, 3]), "Oct–Mar")
         self.assertEqual(service.months_label([2, 3, 4, 5, 9, 10, 11]), "Feb–May, Sep–Nov")
 
-    def test_feed_ranks_by_season_and_distance(self):
+    def test_seven_picks_by_season_then_distance(self):
         d = service.feed("hyderabad", today=date(2026, 10, 28))
         self.assertEqual(d["season"], {"key": "autumn", "label": "Autumn", "month": "October"})
         self.assertFalse(d["ai"])
-        rails = {r["key"]: r for r in d["rails"]}
-        now = [p["key"] for p in rails["now"]["items"]]
-        self.assertIn("charminar", now)
-        self.assertNotIn("solang", now, "Solang is a winter/summer place")
-        self.assertEqual({p["city_slug"] for p in rails["local"]["items"]}, {"hyderabad"})
-        self.assertTrue(all(p["distance_km"] < service.NEAR_KM for p in rails["near_season"]["items"]))
-        self.assertTrue(all(p["distance_km"] >= service.NEAR_KM for p in rails["far"]["items"]))
-        charminar = next(p for p in rails["local"]["items"] if p["key"] == "charminar")
+        picks = d["picks"]
+        self.assertEqual(len(picks), 7)
+        keys = [p["key"] for p in picks]
+        self.assertEqual(keys[:2], ["charminar", "golconda"], "in season and in your city first")
+        self.assertNotIn("solang", keys, "Solang is a winter/summer place")
+        self.assertTrue(all(sum(p["city_slug"] == c for p in picks) <= 2 for c in {p["city_slug"] for p in picks}))
+        charminar = picks[0]
         self.assertEqual(charminar["image"], "https://upload.example/charminar.jpg")
         self.assertEqual(charminar["travel_hint"], "In your city")
         self.assertEqual(charminar["build"], {"city": "hyderabad", "spot": "Charminar", "interests": ["food", "heritage", "nightlife"],
                                               "kind": "experience"})
-        amer = next(p for p in d["rails"][0]["items"] + rails["far"]["items"] if p["key"] == "amer_fort")
+        amer = next(p for p in service.posters("hyderabad", today=date(2026, 10, 28))[0] if p["key"] == "amer_fort")
         self.assertEqual(amer["image"], "https://upload.example/amer.jpg", "redirected title mapped back")
 
-    def test_events_surface_in_their_month(self):
-        d = service.feed("varanasi", today=date(2026, 11, 10))
-        ghat = next(p for p in d["rails"][0]["items"] if p["key"] == "dashashwamedh")
-        self.assertEqual(ghat["event"], "Dev Deepawali lights up every ghat")
-        self.assertEqual(d["rails"][0]["items"][0]["key"], "dashashwamedh", "events lead the in-season rail")
+    def test_events_lift_a_place(self):
+        d = service.feed("hyderabad", today=date(2026, 11, 10))
+        self.assertIn("dashashwamedh", [p["key"] for p in d["picks"]], "Dev Deepawali in November")
 
     @override_settings(GROQ_API_KEY="gsk_test")
     def test_ai_copy_is_used_once_written(self):
@@ -63,9 +61,20 @@ class DiscoverTests(TestCase):
             service.feed("hyderabad", today=date(2026, 10, 28))
             self.assertEqual(Groq.return_value.chat.completions.create.call_count, 1, "copy is cached for the month")
         self.assertTrue(d["ai"])
-        self.assertEqual(d["hero"]["headline"], "Go north this October")
-        charminar = next(p for r in d["rails"] for p in r["items"] if p["key"] == "charminar")
-        self.assertEqual((charminar["title"], charminar["why_now"]), ("Chai by the Charminar", "Cool evenings"))
+        self.assertEqual(d["headline"], "Go north this October")
+        self.assertEqual((d["picks"][0]["title"], d["picks"][0]["why_now"]), ("Chai by the Charminar", "Cool evenings"))
+
+    def test_save_for_later(self):
+        t.reset()
+        trav = t.client_for(t.make_user("Ananya Reddy"), "traveler")
+        self.assertEqual(trav.post("/api/v1/discover/saved/charminar/").json(), {"saved": True})
+        self.assertEqual(trav.post("/api/v1/discover/saved/nowhere/").status_code, 400)
+        feed = trav.get("/api/v1/discover/?city=hyderabad").json()
+        self.assertTrue(next(p for p in feed["picks"] if p["key"] == "charminar")["saved"])
+        self.assertEqual([p["key"] for p in trav.get("/api/v1/discover/saved/?city=goa").json()], ["charminar"])
+        trav.delete("/api/v1/discover/saved/charminar/")
+        self.assertEqual(trav.get("/api/v1/discover/saved/").json(), [])
+        self.assertEqual(self.client.post("/api/v1/discover/saved/charminar/").status_code, 401)
 
     def test_endpoint_is_public(self):
         res = self.client.get("/api/v1/discover/?city=goa")

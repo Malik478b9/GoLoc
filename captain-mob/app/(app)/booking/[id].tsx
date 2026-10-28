@@ -110,7 +110,12 @@ export default function CaptainBooking() {
           <T variant="h2">{b.traveler.name}</T>
           {b.traveler.phone ? <Button title="Call" icon="call" small kind="secondary" onPress={() => Linking.openURL(`tel:${b.traveler.phone}`)} /> : null}
         </Row>
-        {!b.traveler.phone ? <T variant="caption">Phone number is shared once the trip is paid.</T> : null}
+        {!b.traveler.phone ? (
+          <T variant="caption">
+            {b.traveler.phone_masked ? `${b.traveler.phone_masked} · ` : ""}
+            {["confirmed", "in_progress"].includes(b.status) ? "The traveler hasn't shared their number. Message them in the app." : "The number stays private. Travelers can share it once the trip is paid."}
+          </T>
+        ) : null}
         <Button title="Message traveler" icon="chatbubble-ellipses" small kind="secondary" onPress={() => openChat({ booking_id: b.id })} style={{ marginTop: space.md }} />
       </Card>
 

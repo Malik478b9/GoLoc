@@ -78,16 +78,6 @@ VIBE_INTERESTS = {
     "monsoon": "nature", "spiritual": "spiritual", "nightlife": "nightlife", "shopping": "shopping",
 }
 
-VIBE_RAILS = [
-    ("royal", "Palaces & forts", "Live like royalty for a weekend"),
-    ("spiritual", "Ghats & the sacred", "Aartis, temples and quiet mornings"),
-    ("mountains", "Mountains calling", "Snow, passes and pine valleys"),
-    ("beach", "Sun, sand, slow days", "The coast at its best"),
-    ("food", "Eat like a local", "Where the city's best plates are"),
-    ("adventure", "Get the heart racing", "Rafting, ziplines, high passes"),
-    ("romance", "Made for two", "Sunsets, lakes and long dinners"),
-]
-
 # Indian seasons by month.
 SEASONS = {12: "winter", 1: "winter", 2: "winter", 3: "summer", 4: "summer", 5: "summer",
            6: "monsoon", 7: "monsoon", 8: "monsoon", 9: "monsoon", 10: "autumn", 11: "autumn"}

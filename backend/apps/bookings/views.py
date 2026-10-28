@@ -93,7 +93,7 @@ class BookingDetailView(APIView):
 
 
 class BookingActionView(APIView):
-    """POST /bookings/<ref>/<action>/  — accept · decline · cancel · start · complete"""
+    """POST /bookings/<ref>/<action>/  — accept · decline · cancel · start · complete · share-contact"""
 
     permission_classes = [IsTravelerOrCaptain]
     CAPTAIN_ONLY = {"accept", "decline", "start", "complete"}
@@ -116,6 +116,9 @@ class BookingActionView(APIView):
             booking = services.start_trip(booking, request.user, str(request.data.get("pin", "")))
         elif action == "complete":
             booking = services.complete_trip(booking, request.user)
+        elif action == "share-contact":
+            require_role(request, "traveler")
+            booking = services.share_contact(booking, request.user, bool(request.data.get("share", True)))
         else:
             raise Http404
         booking = get_booking(request, booking.pk, for_update_detail=True)

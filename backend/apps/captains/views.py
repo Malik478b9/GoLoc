@@ -440,7 +440,8 @@ class CaptainDetailView(APIView):
         if cache.add(f"pv:{captain.pk}:{viewer}", 1, 3600):
             CaptainProfile.objects.filter(pk=captain.pk).update(profile_views=F("profile_views") + 1)
         data = CaptainDetailSerializer(captain, context={"request": request}).data
-        posts = captain.posts.filter(status="published").select_related("captain__user", "city")[:9]
+        published = captain.posts.filter(status="published")
+        posts = published.select_related("captain__user", "city")[:12]
         reviews = captain.reviews.filter(is_hidden=False).select_related("traveler")[:5]
         data["posts"] = PostSerializer(posts, many=True, context={"request": request}).data
         data["reviews"] = PublicReviewSerializer(reviews, many=True).data
@@ -449,6 +450,17 @@ class CaptainDetailView(APIView):
 
         itineraries = captain.itineraries.filter(kind="template", is_published=True, status="ready")[:10]
         data["itineraries"] = ItinerarySummarySerializer(itineraries, many=True, context={"request": request}).data
+        data["stats"] = {
+            "trips_completed": captain.trips_completed,
+            "rating_avg": captain.rating_avg,
+            "reviews": captain.reviews.filter(is_hidden=False).count(),
+            "reels": published.filter(kind="reel").count(),
+            "photos": published.filter(kind="photo").count(),
+            # Every finished plan, private ones included: shows how much planning they've done, not the plans.
+            "itineraries_prepared": captain.itineraries.filter(status="ready").count(),
+            "years_experience": captain.years_experience,
+            "member_since": captain.created_at.date(),
+        }
         return Response(data)
 
 
@@ -466,6 +478,21 @@ class PublicServiceView(APIView):
             "refund_schedule": pricing.refund_schedule_for_display(),
             "insurance_fee_per_guest_day": settings.INSURANCE_FEE_PER_GUEST_DAY,
         })
+
+
+class NextAvailableView(APIView):
+    """GET /captains/<id>/next-available/?start=YYYY-MM-DD&days=3 → nearest free trips of that length."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, id_or_code):
+        captain = _get_captain(id_or_code)
+        try:
+            start = serializers.DateField().to_internal_value(request.query_params.get("start") or str(timezone.localdate()))
+            days = min(max(int(request.query_params.get("days", 1)), 1), settings.GUIDE_MAX_DAYS)
+        except (serializers.ValidationError, ValueError):
+            raise bad_request("Give a start date and number of days.", "invalid")
+        return Response({"options": services.nearest_available(captain, max(start, timezone.localdate()), days)})
 
 
 class CaptainCalendarView(APIView):
@@ -565,6 +592,7 @@ class MatchView(APIView):
             q = pricing.quote(best, tier, d["guests"], trip_days)
             end = d["start_date"] + timedelta(days=q.days - 1)
             reason = services.unavailable_reason(captain, d["start_date"], end)
+            alternatives = services.nearest_available(captain, d["start_date"], q.days, count=2) if reason else []
             cats = set(captain.categories) | {sv.category for sv in fits}
             interest_score = len(cats & set(d["interests"])) / len(d["interests"]) if d["interests"] else 0.6
             lang_score = 1.0 if not d["languages"] or set(captain.languages) & set(d["languages"]) else 0.0
@@ -578,6 +606,7 @@ class MatchView(APIView):
                 "match": min(99, round(score)),
                 "available": reason is None,
                 "unavailable_reason": reason,
+                "next_available": alternatives,
                 "within_budget": bool(budget_score),
             })
         results.sort(key=lambda r: (not r["available"], -r["match"]))

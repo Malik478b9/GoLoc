@@ -59,6 +59,31 @@ def unavailable_reason(captain: CaptainProfile, start, end, exclude_booking_id=N
     return None
 
 
+def nearest_available(captain: CaptainProfile, start, days: int, *, count=3, window=60, earliest=None) -> list[dict]:
+    """
+    The closest trips of the same length the Captain can take, before or after `start`,
+    nearest first: [{"start_date", "end_date", "shift_days"}]. One calendar load for the window.
+    """
+    earliest = earliest or timezone.localdate()
+    lo = max(earliest, start - timedelta(days=window))
+    hi = start + timedelta(days=window + days)
+    cal = _Calendar(captain, lo, hi)
+    free = {day: cal.reason(day) is None for day in dates_between(lo, hi)}
+    options = []
+    for shift in sorted(range(-window, window + 1), key=lambda s: (abs(s), s < 0)):
+        first = start + timedelta(days=shift)
+        if shift == 0 or first < lo:
+            continue
+        last = first + timedelta(days=days - 1)
+        if last > hi:
+            continue
+        if all(free.get(first + timedelta(days=i), False) for i in range(days)):
+            options.append({"start_date": first, "end_date": last, "shift_days": shift})
+            if len(options) >= count:
+                break
+    return options
+
+
 def booked_dates(captain: CaptainProfile, start, end) -> list:
     """Dates in range where the Captain can't take anything new (for the traveler's calendar)."""
     cal = _Calendar(captain, start, end)

@@ -20,7 +20,7 @@ from apps.cities.models import City
 from apps.common import llm
 from apps.common.api import haversine_km
 
-from .catalog import MONTH_NAMES, MONTHS, SEASON_LABEL, SEASONS, SPOTS, VIBE_INTERESTS, VIBE_RAILS
+from .catalog import MONTH_NAMES, MONTHS, SEASON_LABEL, SEASONS, SPOTS, VIBE_INTERESTS
 
 logger = logging.getLogger("goloc.discover")
 
@@ -174,17 +174,20 @@ def write_copy(month):
 
 
 # ---------------------------------------------------------------- the feed
-def feed(city_slug: str | None, today=None) -> dict:
+PICKS = 7
+
+
+def posters(city_slug: str | None, today=None, saved: set | None = None) -> tuple[list, dict]:
+    """Every live spot as a poster, measured from the traveler's city. Returns (posters, context)."""
     today = today or timezone.localdate()
     month = today.month
-    season = SEASONS[month]
     cities = {c.slug: c for c in City.objects.filter(is_live=True)}
     origin = cities.get(city_slug or "")
     photos = images()
     copy = ai_copy(month) or {}
     ai_spots = copy.get("spots", {})
-
-    posters = []
+    saved = saved or set()
+    out = []
     for s in SPOTS:
         c = cities.get(s["city"])
         if not c:
@@ -196,65 +199,52 @@ def feed(city_slug: str | None, today=None) -> dict:
         fit = season_fit(s, month)
         ai = ai_spots.get(s["key"], {})
         interests = list(dict.fromkeys(VIBE_INTERESTS[v] for v in s["vibes"] if v in VIBE_INTERESTS))
-        posters.append({
-            "key": s["key"],
-            "name": s["name"],
-            "city_slug": c.slug,
-            "city_name": c.name,
-            "state": c.state,
+        event = s.get("events", {}).get(month)
+        out.append({
+            "key": s["key"], "name": s["name"], "city_slug": c.slug, "city_name": c.name, "state": c.state,
             "title": ai.get("title") or s["title"],
             "tagline": ai.get("tagline") or s["tagline"],
-            "why_now": ai.get("why_now") or (s.get("events", {}).get(month) or ("Best right now" if fit == 1 else "")),
-            "vibes": s["vibes"],
-            "best_months": months_label(s["best"]),
-            "in_season": fit == 1,
-            "season_fit": fit,
-            "event": s.get("events", {}).get(month),
-            "distance_km": round(km) if km is not None else None,
-            "travel_hint": travel_hint(km),
+            "why_now": ai.get("why_now") or (event or ("Best right now" if fit == 1 else "")),
+            "vibes": s["vibes"], "best_months": months_label(s["best"]), "in_season": fit == 1, "season_fit": fit,
+            "event": event, "distance_km": round(km) if km is not None else None, "travel_hint": travel_hint(km),
             "image": photos.get(s["wiki"]),
             "image_credit": "Photo: Wikimedia Commons" if photos.get(s["wiki"]) else "",
+            "saved": s["key"] in saved,
             "build": {"city": c.slug, "spot": s["name"], "interests": interests,
                       "kind": "experience" if km is not None and km < 15 else "package"},
         })
+    return out, {"month": month, "origin": origin, "copy": copy}
 
-    by_distance = lambda p: (p["distance_km"] if p["distance_km"] is not None else 99999)  # noqa: E731
-    in_season = sorted([p for p in posters if p["in_season"]], key=lambda p: (not p["event"], by_distance(p)))
-    rails = []
 
-    def rail(key, title, subtitle, items, limit=10):
-        seen, out = set(), []
-        for p in items:
-            if p["key"] not in seen:
-                seen.add(p["key"])
-                out.append(p)
-        if out:
-            rails.append({"key": key, "title": title, "subtitle": subtitle, "items": out[:limit]})
+def _score(p) -> float:
+    """Season first, then closeness; something special happening this month is a strong bonus."""
+    near = 1 - min(p["distance_km"] if p["distance_km"] is not None else 1500, 2000) / 2000
+    return 2 * p["season_fit"] + near + (0.8 if p["event"] else 0)
 
-    month_name = MONTH_NAMES[month]
-    rail("now", f"Best in {month_name}", f"{SEASON_LABEL[season]} picks, at their best right now", in_season)
-    if origin:
-        near_and_good = [p for p in posters if p["distance_km"] is not None and p["distance_km"] < NEAR_KM and p["season_fit"] >= 0.5]
-        rail("near_season", f"Close to {origin.name} and in season", "Short trips that are good right now",
-             sorted(near_and_good, key=lambda p: (-p["season_fit"], by_distance(p))))
-        rail("local", f"In {origin.name}", "No travel needed: explore with a local", [p for p in posters if p["city_slug"] == origin.slug])
-        rail("far", "Worth the journey", f"Further from {origin.name}, perfect this {SEASON_LABEL[season].lower()}",
-             sorted([p for p in in_season if (p["distance_km"] or 0) >= NEAR_KM], key=by_distance))
-    for vibe, title, subtitle in VIBE_RAILS:
-        items = sorted([p for p in posters if vibe in p["vibes"]], key=lambda p: (-p["season_fit"], by_distance(p)))
-        if len(items) >= 2:
-            rail(f"vibe_{vibe}", title, subtitle, items)
-    rail("later", "Save for later", "Better in another season: plan ahead", sorted([p for p in posters if p["season_fit"] == 0], key=by_distance))
 
-    hero_spot = (in_season or posters or [None])[0]
+def feed(city_slug: str | None, today=None, saved: set | None = None) -> dict:
+    """The home screen's 7 picks: the best trips for this season, nearest first, at most 2 per city."""
+    items, ctx = posters(city_slug, today, saved)
+    month, origin, copy = ctx["month"], ctx["origin"], ctx["copy"]
+    picks, per_city = [], {}
+    for p in sorted(items, key=_score, reverse=True):
+        if per_city.get(p["city_slug"], 0) < 2:
+            picks.append(p)
+            per_city[p["city_slug"]] = per_city.get(p["city_slug"], 0) + 1
+        if len(picks) == PICKS:
+            break
+    season = SEASONS[month]
     return {
-        "season": {"key": season, "label": SEASON_LABEL[season], "month": month_name},
+        "season": {"key": season, "label": SEASON_LABEL[season], "month": MONTH_NAMES[month]},
         "from_city": {"slug": origin.slug, "name": origin.name} if origin else None,
-        "hero": {
-            "headline": copy.get("headline") or f"Where to go in {month_name}",
-            "subhead": copy.get("subhead") or f"{SEASON_LABEL[season]} picks from locals, near and far.",
-            "poster": hero_spot,
-        },
-        "rails": rails,
+        "headline": copy.get("headline") or f"Trips for {MONTH_NAMES[month]}",
+        "subhead": copy.get("subhead") or f"{SEASON_LABEL[season]} picks{' from ' + origin.name if origin else ''}, near and far.",
+        "picks": picks,
         "ai": bool(copy),
     }
+
+
+def saved_posters(city_slug, keys: list[str]) -> list:
+    """Saved trips in the order they were saved, measured from the traveler's current city."""
+    by_key = {p["key"]: p for p in posters(city_slug, saved=set(keys))[0]}
+    return [by_key[k] for k in keys if k in by_key]

@@ -89,7 +89,7 @@ export default function Book() {
         </Row>
       }
     >
-      <Card style={{ flexDirection: "row", gap: space.md, alignItems: "center" }}>
+      <Card style={{ flexDirection: "row", gap: space.md, alignItems: "center" }} onPress={() => router.push(`/captain/${c.id}`)}>
         <Avatar uri={c.avatar} name={c.name} size={48} verified />
         <View style={{ flex: 1 }}>
           <T variant="bodyBold">{c.name}</T>
@@ -147,7 +147,7 @@ export default function Book() {
           <>
             <T variant="h2">{isGuide ? "When are you here?" : `Your dates · ${svc.duration_days} days`}</T>
             <T variant="caption" style={{ marginBottom: space.md }}>
-              {isGuide ? "Tap your arrival day, then your return day. Your guide is with you every day in between." : "Tap your arrival day. The return day follows from the package length."}
+              {isGuide ? "Pick your arrival, then your departure. Your guide is with you every day in between." : "Pick your arrival. Departure follows from the package length."}
             </T>
             <DateRangeCalendar
               start={date}

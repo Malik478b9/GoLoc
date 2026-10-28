@@ -116,7 +116,17 @@ export function ChatThread({ id }: { id: string }) {
   const reversed = [...messages].reverse();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
-      <Header title={convo?.other.name ?? "Chat"} subtitle={convo?.booking_code ? `Booking ${convo.booking_code}` : convo?.other.code ?? undefined} />
+      <Header
+        title={convo?.other.name ?? "Chat"}
+        subtitle={convo?.booking_code ? `Booking ${convo.booking_code}` : convo?.other.code ?? undefined}
+        right={
+          convo?.other.captain_id ? (
+            <Pressable onPress={() => router.push(`/captain/${convo.other.captain_id}`)} hitSlop={10} accessibilityLabel="View profile">
+              <Ionicons name="person-circle-outline" size={28} color={palette.ink} />
+            </Pressable>
+          ) : undefined
+        }
+      />
       {error ? (
         <ErrorView error={error} onRetry={load} />
       ) : (
