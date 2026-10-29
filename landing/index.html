@@ -216,6 +216,9 @@
   .foot a:hover { color: var(--gold); }
   .wordmark { font-family: var(--display); font-weight: 800; font-size: 26vw; letter-spacing: -.07em; line-height: .78; text-align: center; margin-top: 70px; background: linear-gradient(90deg, var(--gold), var(--pink), var(--teal), var(--gold)); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 10s linear infinite; user-select: none; }
   @keyframes shine { to { background-position: 300% 0; } }
+  .legal-links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .legal-links a { color: rgba(255,255,255,.6); text-decoration: none; }
+  .legal-links a:hover { color: var(--gold); }
   .legal { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; color: rgba(255,255,255,.45); margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.1); }
 
   /* ---------- reveal ---------- */
@@ -437,7 +440,7 @@
         <input class="hp" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="btn" type="submit" id="send">Send to GoLoc →</button>
         <div class="status" id="status" role="status"></div>
-        <p class="note">Goes straight to info@goloc.in. We never share your details.</p>
+        <p class="note">Goes straight to info@goloc.in. We never share your details. <a href="/privacy">Privacy Policy</a></p>
       </div>
       <div class="done" id="done">
         <span class="big">🎉</span>
@@ -481,8 +484,8 @@
     </div>
     <div class="wordmark" aria-hidden="true">goloc</div>
     <div class="legal">
-      <span>© <span id="yr">2026</span> GoLoc. All rights reserved.</span>
-      <span>Made with ♥ in India</span>
+      <span>© <span id="yr">2026</span> GoLoc. All rights reserved. · Made with ♥ in India</span>
+      <span class="legal-links"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refunds">Refunds &amp; cancellation</a><a href="/captain-agreement">Captain agreement</a><a href="/contact">Contact</a></span>
     </div>
   </div>
 </footer>

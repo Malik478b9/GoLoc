@@ -22,6 +22,15 @@ export default function CaptainBooking() {
   const act = useMutation({
     mutationFn: ({ action, body }: { action: string; body?: any }) => api.post<BookingDetail>(`/bookings/${id}/${action}/`, body ?? {}),
     onSuccess: (b, { action }) => {
+      const passed = (b as unknown as { code?: string; passed_to?: string }).passed_to;
+      if (passed) {
+        // An agency request: it went to a free colleague instead of being declined.
+        qc.invalidateQueries({ queryKey: ["bookings"] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+        setSheet(null);
+        toast(`Passed to ${passed} in your agency`, "success");
+        return router.back();
+      }
       qc.setQueryData(["booking", id], b);
       qc.invalidateQueries({ queryKey: ["bookings"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -79,7 +88,9 @@ export default function CaptainBooking() {
         {b.status === "requested" && <Banner tone="warning" icon="time" title={`Respond within ${timeLeft(b.request_expires_at)}`} body="Requests expire automatically. Quick replies rank you higher." />}
         {b.status === "accepted" && <Banner tone="info" icon="card" title="Waiting for payment" body={`The traveler has ${timeLeft(b.payment_due_at)} to pay. You'll get a notification when it's confirmed.`} />}
         {b.status === "confirmed" && <Banner tone="success" title="Confirmed & paid" body="On the trip day, ask the traveler for their 4-digit trip PIN to start." />}
-        {b.status === "completed" && <Banner tone="success" title={`${money(b.captain_net)} credited to your wallet`} body="Withdraw any time from Earnings." />}
+        {b.status === "completed" && (b.agency_name
+          ? <Banner tone="success" title={`${money(b.captain_net)} credited to ${b.agency_name}`} body="Agency trips are paid to your agency, which pays you." />
+          : <Banner tone="success" title={`${money(b.captain_net)} credited to your wallet`} body="Withdraw any time from Earnings." />)}
         {["cancelled", "declined", "expired"].includes(b.status) && (
           <Banner tone="danger" title={b.status === "expired" ? "Expired" : `Cancelled by ${b.cancelled_by || "you"}`} body={b.cancel_reason} />
         )}

@@ -118,33 +118,44 @@ def refundable_total(booking) -> int:
     return (agg["a"] or 0) - (agg["r"] or 0)
 
 
-# ---------------------------------------------------------------- captain wallet
+# ---------------------------------------------------------------- wallets (Captain or agency)
 def credit_trip(booking):
-    """BR-2: the Captain's share is credited only after the trip is completed."""
+    """
+    BR-2: the share is credited only after the trip is completed — to the agency's
+    wallet when the Captain was working for one at booking time, else to the Captain's.
+    """
     try:
         with transaction.atomic():
             LedgerEntry.objects.create(
-                captain=booking.captain, kind=LedgerEntry.Kind.TRIP_EARNING, amount=booking.captain_net,
-                booking=booking, note=f"{booking.code} · {booking.service_snapshot.get('title', '')}"[:200],
+                captain=booking.captain, agency_id=booking.agency_id, kind=LedgerEntry.Kind.TRIP_EARNING,
+                amount=booking.captain_net, booking=booking,
+                note=f"{booking.code} · {booking.service_snapshot.get('title', '')}"[:200],
             )
     except IntegrityError:
         pass  # already credited
 
 
-def wallet(captain) -> dict:
+def _owner(captain=None, agency=None) -> dict:
+    """Filter for one wallet: an agency's, or a Captain's own (never their agency trips)."""
+    return {"agency": agency} if agency is not None else {"captain": captain, "agency__isnull": True}
+
+
+def wallet(captain=None, agency=None) -> dict:
     from apps.bookings.models import Booking
 
-    entries = LedgerEntry.objects.filter(captain=captain)
+    owner = _owner(captain, agency)
+    entries = LedgerEntry.objects.filter(**owner)
     balance = entries.aggregate(s=Sum("amount"))["s"] or 0
     earned = entries.filter(kind=LedgerEntry.Kind.TRIP_EARNING).aggregate(s=Sum("amount"))["s"] or 0
     upcoming = Booking.objects.filter(
-        captain=captain, status__in=[Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
+        **owner, status__in=[Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS]
     ).aggregate(s=Sum("captain_net"))["s"] or 0
     month_start = timezone.localdate().replace(day=1)
     this_month = entries.filter(kind=LedgerEntry.Kind.TRIP_EARNING, created_at__date__gte=month_start).aggregate(
         s=Sum("amount"))["s"] or 0
-    paid_out = Payout.objects.filter(captain=captain, status=Payout.Status.PAID).aggregate(s=Sum("amount"))["s"] or 0
-    in_transit = Payout.objects.filter(captain=captain, status=Payout.Status.REQUESTED).aggregate(s=Sum("amount"))["s"] or 0
+    payouts = Payout.objects.filter(agency=agency) if agency is not None else Payout.objects.filter(captain=captain)
+    paid_out = payouts.filter(status=Payout.Status.PAID).aggregate(s=Sum("amount"))["s"] or 0
+    in_transit = payouts.filter(status=Payout.Status.REQUESTED).aggregate(s=Sum("amount"))["s"] or 0
     return {
         "available": balance,
         "pending_trips": upcoming,
@@ -153,35 +164,41 @@ def wallet(captain) -> dict:
         "paid_out": paid_out,
         "in_transit": in_transit,
         "min_payout": settings.MIN_PAYOUT_AMOUNT,
-        "on_hold": captain.is_on_hold,
+        "on_hold": (agency or captain).is_on_hold,
     }
 
 
-def request_payout(captain, amount: int) -> Payout:
+def request_payout(captain=None, amount: int = 0, *, agency=None) -> Payout:
+    from apps.agencies.models import Agency
     from apps.captains.models import CaptainProfile
 
     if amount < settings.MIN_PAYOUT_AMOUNT:
         raise bad_request(f"Minimum payout is ₹{settings.MIN_PAYOUT_AMOUNT:,}.", "below_minimum")
-    account = getattr(captain, "payout_account", None)
+    account = getattr(agency or captain, "payout_account", None)
     if account is None:
         raise bad_request("Add your UPI or bank details first.", "no_payout_account")
     with transaction.atomic():
-        captain = CaptainProfile.objects.select_for_update().get(pk=captain.pk)
-        if captain.is_on_hold:
+        if agency is not None:
+            agency = Agency.objects.select_for_update().get(pk=agency.pk)
+        else:
+            captain = CaptainProfile.objects.select_for_update().get(pk=captain.pk)
+        if (agency or captain).is_on_hold:
             raise conflict("Payouts are paused while your account is on hold. Contact support.", "on_hold")
-        balance = LedgerEntry.objects.filter(captain=captain).aggregate(s=Sum("amount"))["s"] or 0
+        balance = LedgerEntry.objects.filter(**_owner(captain, agency)).aggregate(s=Sum("amount"))["s"] or 0
         if amount > balance:
             raise bad_request(f"You can withdraw up to ₹{balance:,}.", "insufficient_balance")
-        payout = Payout.objects.create(code=next_public_code("PO"), captain=captain, amount=amount, destination=account.masked)
-        LedgerEntry.objects.create(captain=captain, kind=LedgerEntry.Kind.PAYOUT, amount=-amount, payout=payout,
-                                   note=f"{payout.code} to {account.masked}"[:200])
-    notify_admins("payout_requested", f"Payout {payout.code} · ₹{amount:,}", f"{captain.code} {captain.name}", {"payout_id": payout.id})
+        payee = {"agency": agency} if agency is not None else {"captain": captain}
+        payout = Payout.objects.create(code=next_public_code("PO"), amount=amount, destination=account.masked, **payee)
+        LedgerEntry.objects.create(kind=LedgerEntry.Kind.PAYOUT, amount=-amount, payout=payout,
+                                   note=f"{payout.code} to {account.masked}"[:200], **payee)
+    who = f"{agency.code} {agency.name} (agency)" if agency is not None else f"{captain.code} {captain.name}"
+    notify_admins("payout_requested", f"Payout {payout.code} · ₹{amount:,}", who, {"payout_id": payout.id})
     return payout
 
 
 def settle_payout(payout: Payout, paid: bool, reference: str, note: str, admin) -> Payout:
     with transaction.atomic():
-        payout = Payout.objects.select_for_update().select_related("captain__user").get(pk=payout.pk)
+        payout = Payout.objects.select_for_update().select_related("captain__user", "agency__owner").get(pk=payout.pk)
         if payout.status != Payout.Status.REQUESTED:
             raise conflict("This payout was already settled.", "already_settled")
         if paid and not reference.strip():
@@ -193,12 +210,12 @@ def settle_payout(payout: Payout, paid: bool, reference: str, note: str, admin) 
         payout.processed_at = timezone.now()
         payout.save()
         if not paid:
-            LedgerEntry.objects.create(captain=payout.captain, kind=LedgerEntry.Kind.PAYOUT_REVERSAL, amount=payout.amount,
-                                       payout=payout, note=f"{payout.code} failed: {note}"[:200])
-    user = payout.captain.user
+            LedgerEntry.objects.create(captain=payout.captain, agency=payout.agency, kind=LedgerEntry.Kind.PAYOUT_REVERSAL,
+                                       amount=payout.amount, payout=payout, note=f"{payout.code} failed: {note}"[:200])
+    user, role = (payout.agency.owner, "agency") if payout.agency_id else (payout.captain.user, "captain")
     if paid:
-        notify(user, "captain", "payout_paid", f"₹{payout.amount:,} sent", f"{payout.code} · Ref {payout.reference}", {"payout_id": payout.id})
+        notify(user, role, "payout_paid", f"₹{payout.amount:,} sent", f"{payout.code} · Ref {payout.reference}", {"payout_id": payout.id})
     else:
-        notify(user, "captain", "payout_failed", "Payout failed — money is back in your wallet",
+        notify(user, role, "payout_failed", "Payout failed — money is back in your wallet",
                note or "Check your bank details.", {"payout_id": payout.id})
     return payout

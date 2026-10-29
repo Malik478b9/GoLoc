@@ -63,7 +63,9 @@ class Payout(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=16, unique=True)
-    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="payouts")
+    # Exactly one of these: who is being paid.
+    captain = models.ForeignKey("captains.CaptainProfile", null=True, blank=True, on_delete=models.PROTECT, related_name="payouts")
+    agency = models.ForeignKey("agencies.Agency", null=True, blank=True, on_delete=models.PROTECT, related_name="payouts")
     amount = models.PositiveIntegerField()
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.REQUESTED)
     destination = models.CharField(max_length=120, help_text="Masked UPI / bank account at request time.")
@@ -76,13 +78,27 @@ class Payout(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["status", "created_at"])]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(captain__isnull=False) ^ models.Q(agency__isnull=False), name="payout_has_one_payee"),
+        ]
+
+    @property
+    def payee_name(self):
+        return self.agency.name if self.agency_id else self.captain.name
+
+    @property
+    def payee_code(self):
+        return self.agency.code if self.agency_id else self.captain.code
 
 
 class LedgerEntry(models.Model):
     """
-    Captain wallet. Append-only; balance = SUM(amount). Credits land only when
+    Wallets. Append-only; balance = SUM(amount). Credits land only when
     a trip completes (BR-2); a payout request debits immediately so the same
     money can't be requested twice; a failed payout is reversed with a credit.
+
+    agency empty → the Captain's own wallet. agency set → the agency's wallet; `captain`
+    then records which of its Captains did the trip (empty on agency payouts).
     """
 
     class Kind(models.TextChoices):
@@ -92,7 +108,8 @@ class LedgerEntry(models.Model):
         ADJUSTMENT = "adjustment", "Adjustment"
 
     id = models.BigAutoField(primary_key=True)
-    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="ledger")
+    captain = models.ForeignKey("captains.CaptainProfile", null=True, blank=True, on_delete=models.PROTECT, related_name="ledger")
+    agency = models.ForeignKey("agencies.Agency", null=True, blank=True, on_delete=models.PROTECT, related_name="ledger")
     kind = models.CharField(max_length=20, choices=Kind.choices)
     amount = models.IntegerField(help_text="₹, signed")
     booking = models.ForeignKey("bookings.Booking", null=True, blank=True, on_delete=models.PROTECT)
@@ -102,7 +119,7 @@ class LedgerEntry(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
-        indexes = [models.Index(fields=["captain", "-created_at"])]
+        indexes = [models.Index(fields=["captain", "-created_at"]), models.Index(fields=["agency", "-created_at"])]
         constraints = [
             models.UniqueConstraint(fields=["booking"], condition=models.Q(kind="trip_earning"), name="one_earning_per_booking"),
         ]

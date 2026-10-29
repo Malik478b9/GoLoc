@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.cities",
     "apps.accounts",
     "apps.captains",
+    "apps.agencies",
     "apps.bookings",
     "apps.payments",
     "apps.trips",
@@ -211,9 +212,9 @@ if OTP_PROVIDER == "twilio_verify" and not DEBUG and not all(
 # CORS — which web frontends may call this API from a browser.
 # (Native mobile apps don't use CORS.)
 # --------------------------------------------------------------------------
-# Dev: the web desks (5174-5176) and the Traveler/Captain apps in a desktop browser (Expo web, 8081+).
+# Dev: the web desks (5174-5177) and the Traveler/Captain apps in a desktop browser (Expo web, 8081+).
 _DEV_ORIGINS = ",".join(
-    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (5174, 5175, 5176, 8081, 8082, 8083, 19006)
+    f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (5174, 5175, 5176, 5177, 8081, 8082, 8083, 19006)
 )
 # An empty value in .env means "use the dev defaults" (DEBUG only), not "allow nothing".
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv()) or (_DEV_ORIGINS.split(",") if DEBUG else [])

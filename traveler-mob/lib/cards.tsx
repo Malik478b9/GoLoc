@@ -7,7 +7,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 import { usePrefetchCaptain } from "./data";
 
-export const CaptainRow = memo(function CaptainRow({ c, right }: { c: CaptainCard; right?: React.ReactNode }) {
+/** `note` = a line about the traveler's search, e.g. "Free 12–15 Nov". */
+export const CaptainRow = memo(function CaptainRow({ c, right, note }: { c: CaptainCard; right?: React.ReactNode; note?: string }) {
   const prefetch = usePrefetchCaptain();
   return (
     <Pressable onPressIn={() => prefetch(c.id)} onPress={() => router.push(`/captain/${c.id}`)} style={({ pressed }) => [styles.captain, pressed && { opacity: 0.85 }]}>
@@ -18,9 +19,15 @@ export const CaptainRow = memo(function CaptainRow({ c, right }: { c: CaptainCar
           <T variant="caption" color={c.captain_type === "guide" ? palette.warning : palette.rickshaw} style={{ marginRight: 6 }}>
             {c.captain_type === "guide" ? "Guide" : "Captain"}
           </T>
+          {c.is_verified ? <Ionicons name="checkmark-done-circle" size={17} color={palette.success} accessibilityLabel="GoLoc Verified" style={{ marginRight: 4 }} /> : null}
           {c.is_featured ? <Ionicons name="ribbon" size={16} color={palette.marigold} /> : null}
         </Row>
-        <T variant="caption" numberOfLines={1}>{c.tagline || c.categories.map(titleCase).join(" · ")}</T>
+        <Row gap={4}>
+          <Ionicons name="location" size={12} color={palette.muted} />
+          <T variant="caption" numberOfLines={1} style={{ flex: 1 }}>
+            {c.city_name}{c.agency_name ? ` · ${c.agency_name}` : ""}{c.years_experience ? ` · ${c.years_experience} yr${c.years_experience > 1 ? "s" : ""} exp` : ""} · {c.tagline || c.categories.map(titleCase).join(" · ")}
+          </T>
+        </Row>
         <Row style={{ marginTop: 6, justifyContent: "space-between" }}>
           <Row gap={10}>
             <Rating value={c.rating_avg} count={c.rating_count} />
@@ -30,6 +37,12 @@ export const CaptainRow = memo(function CaptainRow({ c, right }: { c: CaptainCar
           </Row>
           <T variant="bodyBold">{c.from_price ? `from ${money(c.from_price)}` : ""}</T>
         </Row>
+        {note ? (
+          <Row gap={4} style={{ marginTop: 6 }}>
+            <Ionicons name="checkmark-circle" size={14} color={palette.success} />
+            <T variant="small" color={palette.success}>{note}</T>
+          </Row>
+        ) : null}
       </View>
       {right}
     </Pressable>

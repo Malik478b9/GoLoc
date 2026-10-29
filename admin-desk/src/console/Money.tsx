@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { post } from "../api/client";
 import { ago, Badge, Empty, ErrorBox, Loading, Modal, money, Page, Pager, useAction, useApi, when } from "./lib";
 
-type Payout = { id: string; code: string; captain_code: string; captain_name: string; amount: number; status: string; destination: string; reference: string; note: string; processed_by_name: string | null; processed_at: string | null; created_at: string };
+type Payout = { id: string; code: string; captain_code: string; captain_name: string; is_agency: boolean; amount: number; status: string; destination: string; reference: string; note: string; processed_by_name: string | null; processed_at: string | null; created_at: string };
 type Refund = { id: string; booking_code: string; amount: number; reason: string; gateway_refund_id: string; status: string; created_at: string };
 
 export function Payouts() {
@@ -52,7 +52,7 @@ export function Payouts() {
             <div key={p.id} className="list-row static">
               <div className="grow">
                 <b>{money(p.amount)}</b> <span className="mono">{p.code}</span>
-                <div className="muted small">{p.captain_name} ({p.captain_code}) → {p.destination}</div>
+                <div className="muted small">{p.is_agency ? "Agency · " : ""}{p.captain_name} ({p.captain_code}) → {p.destination}</div>
                 {p.reference ? <div className="muted small">UTR {p.reference}{p.processed_by_name ? ` · by ${p.processed_by_name}` : ""}</div> : null}
                 {p.note ? <div className="muted small">{p.note}</div> : null}
               </div>

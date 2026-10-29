@@ -38,6 +38,7 @@ api = [
     path("reviews/", include("apps.reviews.urls")),
     path("notifications/", include("apps.notifications.urls")),
     path("support/", include("apps.support.urls")),
+    path("agency/", include("apps.agencies.urls")),
     path("admin/", include("apps.adminops.urls")),
     path("itineraries/<uuid:pk>/", PublicItineraryView.as_view(), name="itinerary-public"),
     path("ai/", include("apps.assist.urls")),

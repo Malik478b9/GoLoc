@@ -3,12 +3,15 @@ import { router } from "expo-router";
 import React from "react";
 import { View } from "react-native";
 
-import { useProfile } from "../../../lib/data";
+import { useAgency, useProfile } from "../../../lib/data";
 
 export default function Account() {
   const { user, logout } = useAuth();
   const profile = useProfile();
+  const membership = useAgency();
   const p = profile.data;
+  const agency = p?.agency;
+  const invites = membership.data?.invites.length ?? 0;
   return (
     <Screen back={false} title="Account" onRefresh={profile.refetch}>
       <Card style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
@@ -22,15 +25,22 @@ export default function Account() {
 
       <T variant="label" style={{ marginTop: space.xl, marginBottom: space.sm }}>Business setup</T>
       <Card padded={false} style={{ overflow: "hidden" }}>
+        <ListItem
+          icon="business-outline"
+          title={agency ? agency.name : "Agency"}
+          subtitle={agency ? "You work for this agency" : invites ? `${invites} invite${invites > 1 ? "s" : ""} waiting` : "Independent · join an agency"}
+          onPress={() => router.push("/agency")}
+        />
+        <Divider />
         <ListItem icon="checkbox-outline" title="Go-live checklist" onPress={() => router.push("/checklist")} />
         <Divider />
         <ListItem icon="person-outline" title="Business profile" subtitle="Photo, bio, languages, specialties" onPress={() => router.push("/setup/profile")} />
         <Divider />
-        <ListItem icon="pricetags-outline" title="Services & pricing" subtitle="Day experiences, guide days and packages" onPress={() => router.push("/setup/services")} />
+        <ListItem icon="pricetags-outline" title="Services & pricing" subtitle={agency ? `Set by ${agency.name}` : "Day experiences, guide days and packages"} onPress={() => router.push("/setup/services")} />
         <Divider />
         <ListItem icon="document-text-outline" title="Itineraries" subtitle="AI day-by-day plans and posters for your trips" onPress={() => router.push("/itineraries")} />
         <Divider />
-        <ListItem icon="car-outline" title="Vehicles" subtitle="Optional for local guides" onPress={() => router.push("/setup/vehicles")} />
+        <ListItem icon="car-outline" title="Vehicles" subtitle={agency ? `Cars from ${agency.name}` : "Optional for local guides"} onPress={() => router.push("/setup/vehicles")} />
         <Divider />
         <ListItem icon="shield-checkmark-outline" title="Verification documents" onPress={() => router.push("/setup/documents")} />
         <Divider />
@@ -41,7 +51,7 @@ export default function Account() {
       <Card padded={false} style={{ overflow: "hidden" }}>
         <ListItem icon="wallet-outline" title="Earnings & payouts" onPress={() => router.push("/earnings")} />
         <Divider />
-        <ListItem icon="card-outline" title="Payout account" subtitle="UPI or bank" onPress={() => router.push("/setup/payout")} />
+        {!agency ? <ListItem icon="card-outline" title="Payout account" subtitle="UPI or bank" onPress={() => router.push("/setup/payout")} /> : null}
         <Divider />
         <ListItem icon="star-outline" title="Reviews" onPress={() => router.push("/reviews")} />
       </Card>

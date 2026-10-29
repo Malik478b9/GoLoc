@@ -5,7 +5,7 @@ import { ago, Badge, Empty, ErrorBox, Loading, Modal, money, Page, Pager, title,
 
 type Row = {
   id: string; code: string; name: string; phone: string; avatar: string | null; city_name: string; captain_type: "captain" | "guide"; review_status: string; is_live: boolean;
-  is_on_hold: boolean; is_featured: boolean; rating_avg: string; rating_count: number; trips_completed: number; submitted_at: string | null;
+  is_on_hold: boolean; is_featured: boolean; is_verified: boolean; rating_avg: string; rating_count: number; trips_completed: number; submitted_at: string | null;
   last_active_at: string; created_at: string;
 };
 type Doc = { id: string; doc_type: string; doc_type_label: string; number: string; expires_on: string | null; status: string; note: string; created_at: string; file_path: string };
@@ -98,6 +98,7 @@ export function CaptainDetail({ id }: { id: string }) {
               {c.is_live ? <Badge s="in_progress" label="Live" /> : <Badge s="draft" label="Offline" />}
               {c.is_on_hold ? <Badge s="failed" label="On hold" /> : null}
               {c.is_featured ? <Badge s="approved" label="Featured" /> : null}
+              {c.is_verified ? <Badge s="approved" label="GoLoc Verified" /> : null}
             </div>
           </div>
         </div>
@@ -115,6 +116,9 @@ export function CaptainDetail({ id }: { id: string }) {
           )}
           <button className="btn ghost" disabled={busy} onClick={() => act(() => post(`/admin/captains/${id}/feature/`, { featured: !c.is_featured }), c.is_featured ? "Unfeatured" : "Featured")}>
             {c.is_featured ? "Unfeature" : "Feature"}
+          </button>
+          <button className="btn ghost" disabled={busy} onClick={() => act(() => post(`/admin/captains/${id}/verify/`, { verified: !c.is_verified }), c.is_verified ? "Verified badge removed" : "Marked GoLoc Verified")}>
+            {c.is_verified ? "Remove Verified" : "Mark Verified"}
           </button>
         </div>
       </div>

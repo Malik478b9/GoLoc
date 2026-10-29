@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  api, Avatar, Badge, Button, Card, Empty, ErrorView, Header, Loading, money, openChat, Paginated, palette, Post, PosterCard, radius, Rating, Review, Row, Segmented, Service, SkeletonList,
-  space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
+  api, Avatar, Badge, Button, CaptainAvailability, Card, Empty, ErrorView, Header, Loading, money, openChat, Paginated, palette, Post, PosterCard, radius, Rating, Review, Row, Segmented, Service, SkeletonList,
+  longDate, space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
 } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
@@ -13,11 +13,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { ReelTile } from "../../../lib/cards";
 import { toggleSave, useCaptain, useCompare } from "../../../lib/data";
 
-function ServiceCard({ s }: { s: Service }) {
+/** Opens the booking screen, starting on the day picked from the availability calendar if any. */
+const book = (serviceId: string, date?: string) => router.push({ pathname: "/book/[serviceId]", params: { serviceId, ...(date ? { date } : {}) } });
+
+function ServiceCard({ s, date }: { s: Service; date?: string }) {
   const pkg = s.kind === "package";
   const guide = s.kind === "guide";
   return (
-    <Card onPress={() => router.push(`/book/${s.id}`)} padded={false} style={{ overflow: "hidden" }}>
+    <Card onPress={() => book(s.id, date)} padded={false} style={{ overflow: "hidden" }}>
       {s.cover_image ? <Image source={{ uri: s.cover_image }} style={{ height: 140 }} contentFit="cover" cachePolicy="memory-disk" /> : null}
       <View style={{ padding: space.lg }}>
         <Row style={{ justifyContent: "space-between" }}>
@@ -49,7 +52,7 @@ function ServiceCard({ s }: { s: Service }) {
             </View>
           </Row>
         )}
-        <Button title={guide ? "Pick your dates" : "Book your trip"} small style={{ marginTop: space.md }} onPress={() => router.push(`/book/${s.id}`)} />
+        <Button title={date ? `Book from ${longDate(date)}` : guide ? "Pick your dates" : "Book your trip"} small style={{ marginTop: space.md }} onPress={() => book(s.id, date)} />
       </View>
     </Card>
   );
@@ -62,6 +65,8 @@ export default function CaptainProfile() {
   const compare = useCompare();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"trips" | "itineraries" | "reels" | "photos" | "reviews">("trips");
+  // A free day tapped on the availability calendar; carried into booking.
+  const [picked, setPicked] = useState<string | undefined>();
   // Full lists load when their tab opens; the profile itself carries the latest few.
   const media = useQuery({
     queryKey: ["captain-posts", id, tab],
@@ -123,7 +128,10 @@ export default function CaptainProfile() {
             bg={c.captain_type === "guide" ? palette.marigoldSoft : palette.rickshawSoft}
             fg={c.captain_type === "guide" ? palette.warning : palette.rickshaw}
           />
-          {c.verified ? <Badge label="ID verified" icon="shield-checkmark" bg={palette.successSoft} fg={palette.success} /> : null}
+          {c.is_verified ? <Badge label="GoLoc Verified" icon="checkmark-done-circle" bg={palette.night} fg={palette.marigold} /> : null}
+          {c.verified ? <Badge label="ID checked" icon="shield-checkmark" bg={palette.successSoft} fg={palette.success} /> : null}
+          <Badge label={c.city_name} icon="location" />
+          {c.agency_name ? <Badge label={`With ${c.agency_name}`} icon="business" /> : null}
           {c.languages.map((l) => <Badge key={l} label={l} icon="language" />)}
           {c.vehicles.map((v, i) => <Badge key={i} label={`${v.make_model} · ${v.capacity} seats${v.has_ac ? " · AC" : ""}`} icon="car" />)}
         </Row>
@@ -161,6 +169,38 @@ export default function CaptainProfile() {
           />
         </Row>
 
+        <Card style={{ marginTop: space.lg }}>
+          <Row style={{ justifyContent: "space-between", marginBottom: space.sm }}>
+            <T variant="h2">Availability</T>
+            <Badge label={c.city_name} icon="location" />
+          </Row>
+          <T variant="caption" style={{ marginBottom: space.md }}>
+            When {c.name.split(" ")[0]} can take you around {c.city_name}. Tap a green day to book it.
+          </T>
+          <CaptainAvailability captainId={c.id} selected={picked} onPick={(iso) => setPicked(iso === picked ? undefined : iso)} />
+          {picked ? (
+            <View style={styles.picked}>
+              <T variant="bodyBold">{longDate(picked)} is free</T>
+              {c.services.length === 1 ? (
+                <Button title="Book this day" icon="calendar" small style={{ marginTop: space.sm }} onPress={() => book(c.services[0].id, picked)} />
+              ) : (
+                <>
+                  <T variant="caption" style={{ marginTop: 2, marginBottom: space.sm }}>Choose a trip:</T>
+                  <View style={{ gap: 6 }}>
+                    {c.services.map((s) => (
+                      <Pressable key={s.id} onPress={() => book(s.id, picked)} style={styles.pickRow}>
+                        <T variant="small" style={{ flex: 1 }} numberOfLines={1}>{s.title}</T>
+                        <T variant="bodyBold">{money(s.from_price)}</T>
+                        <Ionicons name="chevron-forward" size={16} color={palette.muted} />
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+          ) : null}
+        </Card>
+
         <View style={{ marginTop: space.xl }}>
           <Segmented
             value={tab}
@@ -192,7 +232,7 @@ export default function CaptainProfile() {
             </View>
           ) : null}
           {tab === "trips" &&
-            (c.services.length ? c.services.map((s) => <ServiceCard key={s.id} s={s} />) : <Empty title="No trips listed yet" />)}
+            (c.services.length ? c.services.map((s) => <ServiceCard key={s.id} s={s} date={picked} />) : <Empty title="No trips listed yet" />)}
           {(tab === "reels" || tab === "photos") &&
             (media.isLoading ? (
               <SkeletonList rows={2} />
@@ -236,7 +276,7 @@ export default function CaptainProfile() {
             <T variant="caption">From</T>
             <T variant="h2">{money(c.from_price)}</T>
           </View>
-          <Button title="Book your trip" icon="calendar" onPress={() => (c.services.length === 1 ? router.push(`/book/${firstService.id}`) : setTab("trips"))} style={{ flex: 1.4 }} />
+          <Button title="Book your trip" icon="calendar" onPress={() => (c.services.length === 1 ? book(firstService.id, picked) : setTab("trips"))} style={{ flex: 1.4 }} />
         </View>
       ) : null}
     </SafeAreaView>
@@ -248,6 +288,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   stats: { flexDirection: "row", flexWrap: "wrap", marginTop: space.lg, backgroundColor: palette.paper, borderRadius: radius.md, borderWidth: 1, borderColor: palette.line, paddingVertical: space.sm },
   stat: { width: "33.33%", alignItems: "center", paddingVertical: space.sm },
+  picked: { marginTop: space.md, padding: space.md, backgroundColor: palette.successSoft, borderRadius: radius.md },
+  pickRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: palette.white, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: 10 },
   reply: { marginTop: space.sm, padding: space.md, backgroundColor: palette.sand, borderRadius: radius.sm },
   footer: { flexDirection: "row", alignItems: "center", gap: space.lg, paddingHorizontal: space.lg, paddingTop: space.md, backgroundColor: palette.paper, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.lineStrong },
 });

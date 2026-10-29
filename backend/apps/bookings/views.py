@@ -108,6 +108,10 @@ class BookingActionView(APIView):
             booking = services.accept(booking, request.user)
         elif action == "decline":
             booking = services.decline(booking, request.user, reason)
+            if booking.captain.user_id != request.user.id:
+                # Passed on to a colleague in their agency: it's no longer this Captain's to see.
+                return Response({"detail": f"Passed to {booking.captain.name} in your agency.", "code": "passed_on",
+                                 "passed_to": booking.captain.name})
         elif action == "cancel":
             if role == "captain" and not reason:
                 raise bad_request("Tell the traveler why you're cancelling.", "reason_required")

@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin
+from apps.agencies.models import Agency
 from apps.bookings import services as booking_services
 from apps.bookings.models import Booking
 from apps.captains.models import CaptainProfile, VerificationDocument
@@ -77,6 +78,7 @@ class DashboardView(AdminView):
             "captains_pending": CaptainProfile.objects.filter(review_status=CaptainProfile.ReviewStatus.PENDING).count(),
             "documents_pending": VerificationDocument.objects.filter(status=VerificationDocument.Status.PENDING).count(),
             "captains_on_hold": CaptainProfile.objects.filter(is_on_hold=True).count(),
+            "agencies_pending": Agency.objects.filter(review_status=Agency.ReviewStatus.PENDING).count(),
             "travelers": User.objects.filter(bookings__isnull=False).distinct().count(),
             "sos_open": SOSAlert.objects.filter(status__in=["open", "acknowledged"]).count(),
             "tickets_open": Ticket.objects.filter(status__in=["open", "in_review"]).count(),
@@ -99,6 +101,8 @@ class LookupView(AdminView):
             code = q if q.startswith("CAP-") else f"CAP-{q}"
             found += [{"type": "captain", "id": c.id, "label": f"{c.code} · {c.name}"} for c in
                       CaptainProfile.objects.filter(code=code).select_related("user")]
+        if q.startswith("AGY-"):
+            found += [{"type": "agency", "id": a.id, "label": f"{a.code} · {a.name}"} for a in Agency.objects.filter(code=q)]
         if q.startswith("BKG-"):
             found += [{"type": "booking", "id": b.id, "label": f"{b.code} · {b.service_snapshot.get('title', '')}"} for b in
                       Booking.objects.filter(code=q)]
@@ -221,6 +225,17 @@ class CaptainFeatureView(AdminView):
         captain.save(update_fields=["is_featured", "updated_at"])
         audit(request.user, "captain_feature", captain, featured=captain.is_featured)
         return Response({"is_featured": captain.is_featured})
+
+
+class CaptainVerifyView(AdminView):
+    """Grant or remove the GoLoc Verified badge (manual now; tied to a paid plan later)."""
+
+    def post(self, request, pk):
+        captain = _captain(pk)
+        captain.is_verified = bool(request.data.get("verified"))
+        captain.save(update_fields=["is_verified", "updated_at"])
+        audit(request.user, "captain_verify", captain, verified=captain.is_verified)
+        return Response({"is_verified": captain.is_verified})
 
 
 class DocumentQueueView(AdminList):
@@ -349,7 +364,7 @@ class PayoutListView(AdminList):
     serializer_class = s.AdminPayoutSerializer
 
     def get_queryset(self):
-        qs = Payout.objects.select_related("captain__user", "processed_by")
+        qs = Payout.objects.select_related("captain__user", "agency", "processed_by")
         st = self.request.query_params.get("status")
         return qs.filter(status=st).order_by("created_at") if st else qs
 

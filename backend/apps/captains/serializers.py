@@ -29,13 +29,18 @@ def _clean_list(values, allowed, label, max_items=8):
 
 class ServiceSerializer(serializers.ModelSerializer):
     from_price = serializers.IntegerField(read_only=True)
+    managed_by_agency = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceOffer
         fields = ["id", "kind", "title", "description", "category", "cover_image", "max_guests", "price",
                   "included_guests", "extra_guest_price", "duration_hours", "start_time", "stops", "duration_days",
-                  "normal_price", "medium_price", "lavish_price", "tier_inclusions", "itinerary", "is_active", "from_price"]
+                  "normal_price", "medium_price", "lavish_price", "tier_inclusions", "itinerary", "is_active", "from_price",
+                  "managed_by_agency"]
         read_only_fields = ["id", "cover_image", "from_price"]
+
+    def get_managed_by_agency(self, obj):
+        return getattr(obj, "agency_service_id", None) is not None
 
     def validate_category(self, value):
         if value not in CATEGORIES:
@@ -80,10 +85,15 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 
 class VehicleSerializer(serializers.ModelSerializer):
+    agency_owned = serializers.SerializerMethodField()
+
     class Meta:
         model = Vehicle
-        fields = ["id", "kind", "make_model", "registration_number", "capacity", "has_ac", "is_active"]
+        fields = ["id", "kind", "make_model", "registration_number", "capacity", "has_ac", "is_active", "agency_owned"]
         read_only_fields = ["id"]
+
+    def get_agency_owned(self, obj):
+        return obj.agency_id is not None
 
     def validate_registration_number(self, value):
         value = "".join(value.upper().split())
@@ -154,14 +164,19 @@ class MyProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="user.full_name", max_length=150)
     city_id = serializers.PrimaryKeyRelatedField(source="city", queryset=City.objects.filter(is_live=True))
     city_name = serializers.CharField(source="city.name", read_only=True)
+    agency = serializers.SerializerMethodField()
 
     class Meta:
         model = CaptainProfile
-        fields = ["id", "code", "full_name", "city_id", "city_name", "captain_type", "tagline", "bio", "avatar", "years_experience",
+        fields = ["id", "code", "full_name", "city_id", "city_name", "agency", "captain_type", "tagline", "bio", "avatar", "years_experience",
                   "languages", "categories", "max_bookings_per_day", "review_status", "review_note", "submitted_at",
                   "is_live", "is_on_hold", "hold_reason", "rating_avg", "rating_count", "trips_completed", "profile_views"]
         read_only_fields = ["id", "code", "avatar", "review_status", "review_note", "submitted_at", "is_live", "is_on_hold",
                             "hold_reason", "rating_avg", "rating_count", "trips_completed", "profile_views"]
+
+    def get_agency(self, obj):
+        a = obj.agency
+        return {"id": a.id, "code": a.code, "name": a.name, "joined_at": obj.agency_joined_at} if a else None
 
     def validate_languages(self, value):
         return _clean_list(value, LANGUAGES, "Languages")
@@ -194,6 +209,7 @@ class CaptainCardSerializer(serializers.ModelSerializer):
     name = serializers.CharField(read_only=True)
     city_name = serializers.CharField(source="city.name", read_only=True)
     city_slug = serializers.CharField(source="city.slug", read_only=True)
+    agency_name = serializers.CharField(source="agency.name", read_only=True, default=None)
     from_price = serializers.IntegerField(read_only=True, default=None)
     has_package = serializers.BooleanField(read_only=True, default=False)
     has_guide = serializers.BooleanField(read_only=True, default=False)
@@ -203,7 +219,7 @@ class CaptainCardSerializer(serializers.ModelSerializer):
         model = CaptainProfile
         fields = ["id", "code", "name", "avatar", "tagline", "captain_type", "captain_type_label", "city_name", "city_slug",
                   "languages", "categories", "years_experience", "rating_avg", "rating_count", "trips_completed",
-                  "is_featured", "from_price", "has_package", "has_guide"]
+                  "is_featured", "is_verified", "agency_name", "from_price", "has_package", "has_guide"]
 
 
 class PublicServiceSerializer(serializers.ModelSerializer):

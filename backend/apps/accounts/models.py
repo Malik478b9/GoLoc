@@ -24,6 +24,7 @@ class User(AbstractUser):
         TRAVELER = "traveler", "Traveler"
         CAPTAIN = "captain", "Captain"
         ADMIN = "admin", "Admin"
+        AGENCY = "agency", "Agency"
 
     username = None  # phone_number is the identity field
 

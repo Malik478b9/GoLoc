@@ -12,6 +12,7 @@ goloc-v2/
 ├── traveler-mob/   Expo app · Traveler  (Local people. Real places. Safe bookings.)
 ├── captain-mob/    Expo app · Captain   (Your city. Your business. Your income.)
 ├── admin-desk/     React (Vite) admin console — mobile-first, works on a phone or a desktop
+├── agency-desk/    React (Vite) console for travel agencies: their Captains, trips & prices, cars, bookings, wallet
 ├── deploy/         nginx config + image (serves media and the admin console)
 ├── docker-compose.yml   Postgres · Redis · API · Celery worker · Celery beat · nginx
 ├── traveler-desk/, captain-desk/   Older web apps — frozen, not updated for this API
@@ -89,6 +90,28 @@ cd admin-desk
 npm install
 npm run dev                 # http://localhost:5176
 ```
+
+### 4. Agency console
+
+```bash
+cd agency-desk
+npm install
+npm run dev                 # http://localhost:5177  (served at /agency/ in production)
+```
+
+Agencies work like fleet partners. The agency registers with GoLoc (business KYC and a payout account),
+and GoLoc admin approves it under **Agencies**. The agency then invites Captains by phone number, and
+each Captain still signs up and is verified in the Captain app, then accepts the invite under
+*Account → Agency*.
+
+While a Captain belongs to an agency:
+- They offer the agency's trips at the agency's prices.
+- They drive the agency's cars.
+- Their trip earnings (fare minus the usual commission) go to the **agency's** wallet. The agency pays its Captains itself.
+- The agency can accept, decline or reassign their requests.
+- When a Captain declines a request, it goes to a free colleague in the same agency first.
+
+Independent Captains work exactly as before.
 
 ---
 

@@ -39,6 +39,11 @@ class CaptainProfile(models.Model):
     years_experience = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(60)])
     languages = models.JSONField(default=list, blank=True)
     categories = models.JSONField(default=list, blank=True)
+    agency = models.ForeignKey(
+        "agencies.Agency", null=True, blank=True, on_delete=models.PROTECT, related_name="captains",
+        help_text="Set when the Captain works for an agency: the agency sets trips and prices and receives the earnings.",
+    )
+    agency_joined_at = models.DateTimeField(null=True, blank=True)
     max_bookings_per_day = models.PositiveSmallIntegerField(
         default=1, validators=[MinValueValidator(1), MaxValueValidator(10)]
     )
@@ -52,6 +57,9 @@ class CaptainProfile(models.Model):
     is_on_hold = models.BooleanField(default=False, help_text="BR-3: inactive > 30 days or held by Admin.")
     hold_reason = models.CharField(max_length=300, blank=True)
     is_featured = models.BooleanField(default=False)
+    is_verified = models.BooleanField(
+        default=False, help_text="GoLoc Verified badge, granted by Admin (a paid tier later). Separate from KYC approval.",
+    )
     last_active_at = models.DateTimeField(default=timezone.now)
 
     # Denormalised so lists and feeds never aggregate per row.
@@ -80,16 +88,17 @@ class CaptainProfile(models.Model):
 
     @property
     def is_bookable(self):
-        return self.is_live and not self.is_on_hold and self.review_status == self.ReviewStatus.APPROVED
+        return (self.is_live and not self.is_on_hold and self.review_status == self.ReviewStatus.APPROVED
+                and (self.agency_id is None or self.agency.is_active_business))
 
     def touch(self):
         """Record activity for the BR-3 inactivity rule. Cheap: one UPDATE."""
         CaptainProfile.objects.filter(pk=self.pk).update(last_active_at=timezone.now())
 
 
-class ServiceOffer(models.Model):
+class ServiceFields(models.Model):
     """
-    What a Captain sells.
+    What is sold, shared by a Captain's own services and an agency's trip catalog.
       experience — a day experience at one group price (+ per extra guest)
       guide      — an in-person guide hired by the day for the traveler's own dates;
                    group price per day (+ per extra guest per day). Traveler arranges stay/transport.
@@ -102,9 +111,11 @@ class ServiceOffer(models.Model):
         PACKAGE = "package", "Full-service package"
 
     PER_DAY_KINDS = (Kind.GUIDE,)
+    # Copied from an agency's catalog onto each of its Captains' services.
+    COPIED_FIELDS = ("kind", "title", "description", "category", "cover_image", "max_guests", "price", "included_guests",
+                     "extra_guest_price", "duration_hours", "start_time", "stops", "duration_days", "normal_price",
+                     "medium_price", "lavish_price", "tier_inclusions", "itinerary")
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="services")
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.EXPERIENCE)
     title = models.CharField(max_length=120)
     description = models.TextField(max_length=2000, blank=True)
@@ -128,6 +139,30 @@ class ServiceOffer(models.Model):
     tier_inclusions = models.JSONField(default=dict, blank=True, help_text='{"normal": ["…"], "medium": […], …}')
     itinerary = models.JSONField(default=list, blank=True, help_text="One line per day.")
 
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return self.title
+
+    def tier_price(self, tier):
+        return getattr(self, f"{tier}_price")
+
+    @property
+    def from_price(self):
+        return self.normal_price if self.kind == self.Kind.PACKAGE else self.price
+
+
+class ServiceOffer(ServiceFields):
+    """What a Captain sells. For an agency's Captain it's a copy of the agency's trip, kept in sync."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="services")
+    agency_service = models.ForeignKey(
+        "agencies.AgencyService", null=True, blank=True, on_delete=models.SET_NULL, related_name="copies",
+        help_text="Set when the agency manages this service: the Captain can't edit it.",
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -142,17 +177,9 @@ class ServiceOffer(models.Model):
                            lavish_price__gte=models.F("medium_price")),
                 name="service_prices_valid",
             ),
+            models.UniqueConstraint(fields=["captain", "agency_service"], condition=models.Q(agency_service__isnull=False),
+                                    name="one_copy_per_agency_service"),
         ]
-
-    def __str__(self):
-        return self.title
-
-    def tier_price(self, tier):
-        return getattr(self, f"{tier}_price")
-
-    @property
-    def from_price(self):
-        return self.normal_price if self.kind == self.Kind.PACKAGE else self.price
 
 
 class Vehicle(models.Model):
@@ -164,7 +191,10 @@ class Vehicle(models.Model):
         OTHER = "other", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    captain = models.ForeignKey(CaptainProfile, on_delete=models.CASCADE, related_name="vehicles")
+    captain = models.ForeignKey(CaptainProfile, null=True, blank=True, on_delete=models.CASCADE, related_name="vehicles",
+                                help_text="Who drives it. Agency cars can be unassigned.")
+    agency = models.ForeignKey("agencies.Agency", null=True, blank=True, on_delete=models.CASCADE, related_name="vehicles",
+                               help_text="Set for an agency's own cars.")
     kind = models.CharField(max_length=16, choices=Kind.choices)
     make_model = models.CharField(max_length=100)
     registration_number = models.CharField(max_length=20)
@@ -233,12 +263,13 @@ class BlockedDate(models.Model):
         constraints = [models.UniqueConstraint(fields=["captain", "date"], name="unique_captain_blocked_date")]
 
 
-class PayoutAccount(models.Model):
+class BankAccount(models.Model):
+    """Where payouts go. Shared by Captains and agencies."""
+
     class Method(models.TextChoices):
         UPI = "upi", "UPI"
         BANK = "bank", "Bank transfer"
 
-    captain = models.OneToOneField(CaptainProfile, on_delete=models.CASCADE, primary_key=True, related_name="payout_account")
     method = models.CharField(max_length=8, choices=Method.choices)
     account_holder = models.CharField(max_length=120)
     upi_id = models.CharField(max_length=80, blank=True)
@@ -246,11 +277,18 @@ class PayoutAccount(models.Model):
     ifsc = models.CharField(max_length=11, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        abstract = True
+
     @property
     def masked(self):
         if self.method == self.Method.UPI:
             return self.upi_id
         return f"A/c ••••{self.account_number[-4:]} · {self.ifsc}"
+
+
+class PayoutAccount(BankAccount):
+    captain = models.OneToOneField(CaptainProfile, on_delete=models.CASCADE, primary_key=True, related_name="payout_account")
 
 
 class SavedCaptain(models.Model):

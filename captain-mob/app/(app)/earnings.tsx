@@ -7,7 +7,10 @@ import { View } from "react-native";
 import { Wallet } from "../../lib/data";
 
 type WalletResponse = Wallet & {
-  ledger: { id: number; kind: string; amount: number; note: string; booking_code: string | null; created_at: string }[];
+  ledger: { id: number; kind: string; amount: number; note: string; booking_code: string | null; paid_to_agency: boolean; created_at: string }[];
+  agency: { code: string; name: string } | null;
+  /** What their trips for an agency earned (paid to the agency, which pays them). */
+  agency_earned: number;
   payouts: { id: string; code: string; amount: number; status: string; destination: string; reference: string; note: string; created_at: string }[];
   payout_account: string | null;
 };
@@ -36,6 +39,12 @@ export default function Earnings() {
 
   return (
     <Screen title="Earnings & payouts" onRefresh={q.refetch}>
+      {w.agency || w.agency_earned ? (
+        <View style={{ marginBottom: space.md }}>
+          <Banner tone="info" icon="business" title={w.agency ? `Your trips are paid to ${w.agency.name}` : "Agency trips"}
+            body={`${money(w.agency_earned)} earned on agency trips so far. Your agency pays you directly; below are all the trips you did.`} />
+        </View>
+      ) : null}
       <Card style={{ backgroundColor: palette.night }}>
         <T variant="label" color={palette.marigold}>Available to withdraw</T>
         <T style={{ fontSize: 36, fontWeight: "800", color: palette.white, marginVertical: 6 }}>{money(w.available)}</T>
@@ -77,9 +86,9 @@ export default function Earnings() {
           <Row key={e.id} style={{ justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: palette.line }}>
             <View style={{ flex: 1 }}>
               <T variant="small">{e.note || titleCase(e.kind)}</T>
-              <T variant="caption">{timeAgo(e.created_at)}</T>
+              <T variant="caption">{timeAgo(e.created_at)}{e.paid_to_agency ? " · paid to your agency" : ""}</T>
             </View>
-            <T variant="bodyBold" color={e.amount >= 0 ? palette.success : palette.ink}>{e.amount >= 0 ? "+" : "−"}{money(Math.abs(e.amount))}</T>
+            <T variant="bodyBold" color={e.paid_to_agency ? palette.muted : e.amount >= 0 ? palette.success : palette.ink}>{e.amount >= 0 ? "+" : "−"}{money(Math.abs(e.amount))}</T>
           </Row>
         ))}
       </Section>

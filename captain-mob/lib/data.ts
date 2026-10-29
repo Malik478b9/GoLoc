@@ -7,6 +7,8 @@ export type CaptainProfile = {
   full_name: string;
   city_id: string;
   city_name: string;
+  /** Set while the Captain works for an agency: it sets trips, prices and cars, and receives the earnings. */
+  agency: { id: string; code: string; name: string; joined_at: string } | null;
   captain_type: "captain" | "guide";
   tagline: string;
   bio: string;
@@ -78,6 +80,15 @@ export function useDashboard() {
   });
 }
 
+export type AgencyMembership = {
+  agency: { id: string; code: string; name: string; city_name: string; joined_at: string; logo: string | null } | null;
+  invites: { id: string; agency: { code: string; name: string; city_name: string }; created_at: string }[];
+};
+
+export function useAgency() {
+  return useQuery({ queryKey: ["captain-agency"], queryFn: () => api.get<AgencyMembership>("/captain/agency/") });
+}
+
 export function useOptions() {
   return useQuery({ queryKey: ["captain-options"], queryFn: () => api.get<Options>("/captain/options/"), staleTime: 60 * 60_000 });
 }
@@ -88,5 +99,8 @@ export function useRefreshBusiness() {
     qc.invalidateQueries({ queryKey: ["captain-profile"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
     qc.invalidateQueries({ queryKey: ["checklist"] });
+    qc.invalidateQueries({ queryKey: ["captain-agency"] });
+    qc.invalidateQueries({ queryKey: ["my-services"] });
+    qc.invalidateQueries({ queryKey: ["vehicles"] });
   };
 }

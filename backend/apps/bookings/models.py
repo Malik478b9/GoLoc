@@ -46,6 +46,10 @@ class Booking(models.Model):
     traveler = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="bookings")
     captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="bookings")
     service = models.ForeignKey("captains.ServiceOffer", on_delete=models.PROTECT, related_name="bookings")
+    agency = models.ForeignKey(
+        "agencies.Agency", null=True, blank=True, on_delete=models.PROTECT, related_name="bookings",
+        help_text="The agency the Captain worked for when this was booked: it gets the earnings and can reassign the trip.",
+    )
     city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="bookings")
 
     kind = models.CharField(max_length=12)

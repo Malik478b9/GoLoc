@@ -50,6 +50,8 @@ export default function BuildTrip() {
       }),
     onSuccess: () => setStep(3),
   });
+  const free = (match.data?.results ?? []).filter((m) => m.available);
+  const busy = (match.data?.results ?? []).filter((m) => !m.available);
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   const steps = [
@@ -132,7 +134,31 @@ export default function BuildTrip() {
       {(match.data?.results ?? []).length === 0 ? (
         <Empty icon="search-outline" title="No matches yet" body={kind === "package" ? "Try a longer stay (packages must fit between arrival and return), another date, or hire a guide instead." : "Try other dates, fewer interests, or a different way to travel."} action="Change plan" onAction={() => setStep(0)} />
       ) : (
-        match.data!.results.map((m) => (
+        <>
+          <Row gap={6}>
+            <Ionicons name="checkmark-circle" size={18} color={palette.success} />
+            <T variant="h2">Free on your dates · {free.length}</T>
+          </Row>
+          {free.length ? free.map(card) : (
+            <T variant="caption">Nobody is free for all of {whenLabel}. Pick one of the nearest free dates below, or change your dates.</T>
+          )}
+          {busy.length ? (
+            <>
+              <Row gap={6} style={{ marginTop: space.lg }}>
+                <Ionicons name="calendar-outline" size={18} color={palette.coral} />
+                <T variant="h2">Busy then · free on other days</T>
+              </Row>
+              <T variant="caption">Their calendar is full on some of your days. Tap a date to book when they're free.</T>
+              {busy.map(card)}
+            </>
+          ) : null}
+        </>
+      )}
+    </View>,
+  ];
+
+  function card(m: Match) {
+    return (
           <Card key={m.captain.id} onPress={() => router.push({ pathname: "/book/[serviceId]", params: {
             serviceId: m.service.id, date: m.available ? date : undefined, end: m.available && kind === "guide" ? end : undefined, guests: String(guests), tier,
           } })}>
@@ -142,10 +168,10 @@ export default function BuildTrip() {
               </Pressable>
               <View style={{ flex: 1 }}>
                 <Row style={{ justifyContent: "space-between" }}>
-                  <T variant="h2">{m.captain.name}</T>
+                  <T variant="h2" style={{ flex: 1 }} numberOfLines={1}>{m.captain.name}</T>
                   <Badge label={`${m.match}% match`} bg={palette.successSoft} fg={palette.success} />
                 </Row>
-                <T variant="caption" numberOfLines={1}>{m.service.title}</T>
+                <T variant="caption" numberOfLines={1}>{m.service.title} · {m.captain.years_experience} yrs · {m.captain.trips_completed} trips</T>
                 <Rating value={m.captain.rating_avg} count={m.captain.rating_count} />
               </View>
             </Row>
@@ -177,10 +203,8 @@ export default function BuildTrip() {
               </View>
             </Row>
           </Card>
-        ))
-      )}
-    </View>,
-  ];
+    );
+  }
 
   const titles = ["Plan your trip", "When & who", "Your interests", "Your matches"];
   return (

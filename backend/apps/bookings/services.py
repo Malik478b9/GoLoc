@@ -85,6 +85,7 @@ def create_request(traveler, service, *, tier, guests, start_date, end_date=None
             raise conflict("You already have a request for this trip on those dates.", "duplicate_request")
         booking = Booking(
             code=next_public_code("BKG"), traveler=traveler, captain=captain, service=service, city=captain.city,
+            agency_id=captain.agency_id,
             kind=service.kind, tier=tier, guests=guests, start_date=start_date, end_date=end_date, start_time=start_time,
             meeting_point=meeting_point[:200], note=note[:1000], service_snapshot=_snapshot(service),
             fare=q.fare, insurance_fee=q.insurance_fee, total=q.total, commission=q.commission,
@@ -93,9 +94,11 @@ def create_request(traveler, service, *, tier, guests, start_date, end_date=None
         booking.request_expires_at = min(timezone.now() + timedelta(hours=settings.REQUEST_EXPIRY_HOURS), booking.starts_at)
         booking.save()
         log(booking, traveler, "traveler", "requested", f"Requested for {guests} guest(s)")
-    notify(captain.user, "captain", "booking_requested", f"New request · {booking.code}",
-           f"{traveler.full_name or 'A traveler'} · {service.title} · {_dates(start_date, end_date)} · ₹{booking.fare:,}",
-           {"booking_id": booking.id})
+    summary = f"{traveler.full_name or 'A traveler'} · {service.title} · {_dates(start_date, end_date)} · ₹{booking.fare:,}"
+    notify(captain.user, "captain", "booking_requested", f"New request · {booking.code}", summary, {"booking_id": booking.id})
+    if captain.agency_id:
+        notify(captain.agency.owner, "agency", "booking_requested", f"New request for {captain.name} · {booking.code}", summary,
+               {"booking_id": booking.id})
     return booking
 
 
@@ -113,7 +116,8 @@ def _snapshot(service):
 
 
 # ---------------------------------------------------------------- captain decisions
-def accept(booking, captain_user) -> Booking:
+def accept(booking, captain_user, role="captain") -> Booking:
+    """The Captain accepts, or (role="agency") their agency accepts on their behalf."""
     with transaction.atomic():
         booking = _lock(booking)
         _require(booking, S.REQUESTED, message="This request is no longer open.")
@@ -126,7 +130,7 @@ def accept(booking, captain_user) -> Booking:
         booking.accepted_at = now
         booking.payment_due_at = min(now + timedelta(minutes=settings.PAYMENT_WINDOW_MINUTES), booking.starts_at)
         booking.save(update_fields=["status", "accepted_at", "payment_due_at", "updated_at"])
-        log(booking, captain_user, "captain", "accepted", "Captain accepted")
+        log(booking, captain_user, role, "accepted", "Agency accepted for the Captain" if role == "agency" else "Captain accepted")
     booking.captain.touch()
     notify(booking.traveler, "traveler", "booking_accepted", f"{booking.captain.name} accepted 🎉",
            f"Pay ₹{booking.total:,} within {settings.PAYMENT_WINDOW_MINUTES // 60} hours to confirm {booking.code}.",
@@ -134,14 +138,25 @@ def accept(booking, captain_user) -> Booking:
     return booking
 
 
-def decline(booking, captain_user, reason="") -> Booking:
+def decline(booking, captain_user, reason="", role="captain") -> Booking:
+    """
+    An agency Captain's decline goes to a free colleague first; the traveler only hears
+    "declined" when nobody in the agency can take it (or the agency itself declines).
+    """
+    from apps.agencies.services import pass_on_decline
+
+    if role == "captain" and booking.agency_id and booking.status == S.REQUESTED:
+        log(booking, captain_user, role, "declined_by_captain", reason or f"{booking.captain.name} can't take it")
+        if pass_on_decline(booking, captain_user):
+            booking.refresh_from_db()
+            return booking
     with transaction.atomic():
         booking = _lock(booking)
         _require(booking, S.REQUESTED, message="This request is no longer open.")
         booking.status = S.DECLINED
         booking.cancel_reason = reason[:300]
         booking.save(update_fields=["status", "cancel_reason", "updated_at"])
-        log(booking, captain_user, "captain", "declined", reason or "Captain declined")
+        log(booking, captain_user, role, "declined", reason or ("Agency declined" if role == "agency" else "Captain declined"))
     booking.captain.touch()
     notify(booking.traveler, "traveler", "booking_declined", f"{booking.captain.name} can't take {booking.code}",
            reason or "Try another date or Captain.", {"booking_id": booking.id})

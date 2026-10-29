@@ -27,6 +27,10 @@ class IsCaptain(_RolePermission):
     role = User.Role.CAPTAIN
 
 
+class IsAgency(_RolePermission):
+    role = User.Role.AGENCY
+
+
 class IsAdmin(_RolePermission):
     """Admin console session *and* still staff — revoking is_staff cuts access immediately."""
 

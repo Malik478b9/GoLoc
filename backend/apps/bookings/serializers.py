@@ -24,11 +24,12 @@ class BookingListSerializer(serializers.ModelSerializer):
     captain = serializers.SerializerMethodField()
     traveler = serializers.SerializerMethodField()
     city_name = serializers.CharField(source="city.name", read_only=True)
+    agency_name = serializers.CharField(source="agency.name", read_only=True, default=None)
 
     class Meta:
         model = Booking
         fields = ["id", "code", "status", "status_label", "kind", "tier", "guests", "start_date", "end_date",
-                  "start_time", "title", "captain", "traveler", "city_name", "fare", "total", "captain_net",
+                  "start_time", "title", "captain", "traveler", "city_name", "agency_name", "fare", "total", "captain_net",
                   "request_expires_at", "payment_due_at", "created_at"]
 
     @property
@@ -49,9 +50,10 @@ class BookingListSerializer(serializers.ModelSerializer):
         """Captains see the traveler's name only. Their number needs a paid booking and the traveler's consent."""
         t = obj.traveler
         out = {"id": t.id, "name": t.full_name or "Traveler"}
-        if self.role == "admin" or (self.role == "captain" and obj.is_paid and obj.traveler_shares_contact):
+        # An agency sees what its Captain sees.
+        if self.role == "admin" or (self.role in {"captain", "agency"} and obj.is_paid and obj.traveler_shares_contact):
             out["phone"] = t.phone_number
-        elif self.role == "captain":
+        elif self.role in {"captain", "agency"}:
             out.pop("id")
             out["phone_masked"] = mask_phone(t.phone_number)
         return out

@@ -22,7 +22,7 @@ class AdminCaptainRowSerializer(serializers.ModelSerializer):
     class Meta:
         model = CaptainProfile
         fields = ["id", "code", "name", "phone", "avatar", "city_name", "captain_type", "review_status", "is_live", "is_on_hold",
-                  "is_featured", "rating_avg", "rating_count", "trips_completed", "submitted_at", "last_active_at", "created_at"]
+                  "is_featured", "is_verified", "rating_avg", "rating_count", "trips_completed", "submitted_at", "last_active_at", "created_at"]
 
 
 class AdminDocumentSerializer(DocumentSerializer):
@@ -97,14 +97,19 @@ class AdminBookingDetailSerializer(BookingDetailSerializer):
 
 
 class AdminPayoutSerializer(serializers.ModelSerializer):
-    captain_code = serializers.CharField(source="captain.code", read_only=True)
-    captain_name = serializers.CharField(source="captain.name", read_only=True)
+    # The payee: a Captain or an agency (kept under the captain_* names the console already reads).
+    captain_code = serializers.CharField(source="payee_code", read_only=True)
+    captain_name = serializers.CharField(source="payee_name", read_only=True)
+    is_agency = serializers.SerializerMethodField()
     processed_by_name = serializers.CharField(source="processed_by.full_name", read_only=True, default=None)
 
     class Meta:
         model = Payout
-        fields = ["id", "code", "captain_code", "captain_name", "amount", "status", "destination", "reference", "note",
+        fields = ["id", "code", "captain_code", "captain_name", "is_agency", "amount", "status", "destination", "reference", "note",
                   "processed_by_name", "processed_at", "created_at"]
+
+    def get_is_agency(self, obj):
+        return obj.agency_id is not None
 
 
 class SOSSerializer(serializers.ModelSerializer):

@@ -31,10 +31,15 @@ from .serializers import (CATEGORIES, LANGUAGES, BlockedDateSerializer, CaptainC
 
 
 def my_profile(request) -> CaptainProfile:
-    profile = CaptainProfile.objects.select_related("user", "city").filter(user=request.user).first()
+    profile = CaptainProfile.objects.select_related("user", "city", "agency").filter(user=request.user).first()
     if profile is None:
         raise conflict("Set up your business profile first.", "no_profile")
     return profile
+
+
+def _not_agency_managed(profile, what="trips and prices"):
+    if profile.agency_id:
+        raise conflict(f"{profile.agency.name} manages your {what}. Ask them to make changes.", "agency_managed")
 
 
 # ================================================================ captain self-service
@@ -161,6 +166,7 @@ class ServiceListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         profile = my_profile(self.request)
+        _not_agency_managed(profile)
         if profile.services.filter(is_active=True).count() >= 20:
             raise bad_request("You can list up to 20 active services.", "limit")
         serializer.save(captain=profile)
@@ -173,7 +179,12 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return ServiceOffer.objects.filter(captain__user=self.request.user)
 
+    def perform_update(self, serializer):
+        _not_agency_managed(my_profile(self.request))
+        serializer.save()
+
     def perform_destroy(self, instance):
+        _not_agency_managed(my_profile(self.request))
         if instance.bookings.exists():  # keep history intact
             instance.is_active = False
             instance.save(update_fields=["is_active", "updated_at"])
@@ -188,6 +199,7 @@ class ServiceCoverView(APIView):
 
     def post(self, request, pk):
         service = get_object_or_404(ServiceOffer, pk=pk, captain__user=request.user)
+        _not_agency_managed(my_profile(request))
         file = request.FILES.get("image")
         if not file:
             raise bad_request("Attach an image.", "file_required")
@@ -208,7 +220,9 @@ class VehicleListView(generics.ListCreateAPIView):
         return Vehicle.objects.filter(captain__user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(captain=my_profile(self.request))
+        profile = my_profile(self.request)
+        _not_agency_managed(profile, "vehicles")
+        serializer.save(captain=profile)
 
 
 class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -216,7 +230,8 @@ class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = VehicleSerializer
 
     def get_queryset(self):
-        return Vehicle.objects.filter(captain__user=self.request.user)
+        # An agency's car is the agency's to edit.
+        return Vehicle.objects.filter(captain__user=self.request.user, agency__isnull=True)
 
 
 class DocumentListView(generics.ListCreateAPIView):
@@ -346,8 +361,9 @@ def bookable_captains():
     return (
         CaptainProfile.objects.filter(is_live=True, is_on_hold=False, review_status=CaptainProfile.ReviewStatus.APPROVED,
                                       city__is_live=True)
+        .filter(Q(agency__isnull=True) | Q(agency__review_status="approved", agency__is_on_hold=False))
         .filter(Exists(active))
-        .select_related("user", "city")
+        .select_related("user", "city", "agency")
         .annotate(from_price=Subquery(price, output_field=IntegerField()),
                   has_package=Exists(active.filter(kind="package")),
                   has_guide=Exists(active.filter(kind="guide")))
@@ -363,7 +379,9 @@ def _saved_ids(request, ids):
 class DiscoveryView(generics.ListAPIView):
     """
     GET /captains/?city=hyderabad&category=food&kind=package|experience|guide&type=captain|guide&language=Hindi&q=…
-                  &sort=rating|price_low|price_high|trips
+                  &guests=4&min_rating=4&min_trips=10&min_exp=5&verified=1&start=YYYY-MM-DD&end=YYYY-MM-DD
+                  &sort=rating|price_low|price_high|trips|experience
+    No city = every live city. With start (and end) only Captains free on every one of those days are listed.
     Public. Cached briefly per query since it's the hottest read in the app.
     """
 
@@ -387,26 +405,56 @@ class DiscoveryView(generics.ListAPIView):
         q = p.get("q", "").strip()[:60]
         if q:
             qs = qs.filter(Q(user__full_name__icontains=q) | Q(tagline__icontains=q) | Q(code__iexact=q)
+                           | Q(city__name__icontains=q)
                            | Q(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, title__icontains=q))))
+        if p.get("guests", "").isdigit():
+            qs = qs.filter(Exists(ServiceOffer.objects.filter(captain=OuterRef("pk"), is_active=True, max_guests__gte=int(p["guests"]))))
         if p.get("min_rating"):
             try:
                 qs = qs.filter(rating_avg__gte=float(p["min_rating"]))
             except ValueError:
                 pass
+        if p.get("min_trips", "").isdigit():
+            qs = qs.filter(trips_completed__gte=int(p["min_trips"]))
+        if p.get("min_exp", "").isdigit():
+            qs = qs.filter(years_experience__gte=int(p["min_exp"]))
+        if p.get("verified") in {"1", "true"}:
+            qs = qs.filter(is_verified=True)
         if p.get("max_price", "").isdigit():
             qs = qs.filter(from_price__lte=int(p["max_price"]))
+        if p.get("start"):
+            start, end = self._dates(p)
+            capacity = dict(qs.values_list("pk", "max_bookings_per_day"))
+            qs = qs.filter(pk__in=services.free_for_trip(capacity, start, end))
         order = {
             "rating": ["-rating_avg", "-rating_count"],
             "price_low": ["from_price", "-rating_avg"],
             "price_high": ["-from_price", "-rating_avg"],
             "trips": ["-trips_completed"],
-        }.get(p.get("sort"), ["-is_featured", "-rating_avg", "-trips_completed", "code"])
+            "experience": ["-years_experience", "-rating_avg"],
+        }.get(p.get("sort"), ["-is_featured", "-is_verified", "-rating_avg", "-trips_completed", "code"])
         return qs.order_by(*order)
+
+    @staticmethod
+    def _dates(p):
+        try:
+            start = serializers.DateField().to_internal_value(p["start"])
+            end = serializers.DateField().to_internal_value(p.get("end") or p["start"])
+        except serializers.ValidationError:
+            raise bad_request("Dates must look like 2026-11-20.", "invalid_dates")
+        if start < timezone.localdate():
+            raise bad_request("Choose today or a later date.", "date_in_past")
+        if end < start:
+            raise bad_request("Your departure must be on or after your arrival.", "dates_reversed")
+        if (end - start).days >= 60:
+            raise bad_request("Search up to 60 days at a time.", "too_many_days")
+        return start, end
 
     def list(self, request, *args, **kwargs):
         from .signals import discovery_version
 
-        key = f"disc:{discovery_version()}:" + hashlib.md5(request.get_full_path().encode()).hexdigest()
+        # Host is part of the key: photo links are absolute, so a phone on the LAN and the PC get their own copy.
+        key = f"disc:{discovery_version()}:" + hashlib.md5(f"{request.get_host()}{request.get_full_path()}".encode()).hexdigest()
         data = cache.get(key)
         if data is None:
             data = super().list(request, *args, **kwargs).data
@@ -496,7 +544,10 @@ class NextAvailableView(APIView):
 
 
 class CaptainCalendarView(APIView):
-    """GET /captains/<id>/calendar/?from=YYYY-MM-DD&days=60 → dates that can't be booked."""
+    """
+    GET /captains/<id>/calendar/?from=YYYY-MM-DD&days=60
+    → unavailable dates (for pickers), every day's status (for the month view) and the weekly hours.
+    """
 
     permission_classes = [AllowAny]
 
@@ -508,7 +559,13 @@ class CaptainCalendarView(APIView):
             start = timezone.localdate()
         days = min(max(int(request.query_params.get("days", 60) or 60), 1), 120)
         end = start + timedelta(days=days - 1)
-        return Response({"from": start, "to": end, "unavailable": services.booked_dates(captain, start, end)})
+        days_out = services.day_statuses(captain, start, end)
+        return Response({
+            "from": start, "to": end,
+            "unavailable": [d["date"] for d in days_out if d["status"] != "free"],
+            "days": days_out,
+            "weekly": WeeklySlotSerializer(captain.weekly_slots.all(), many=True).data,
+        })
 
 
 def _trip_days(data, service):

@@ -9,7 +9,7 @@ import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useDashboard, useProfile, useRefreshBusiness } from "../../../lib/data";
+import { useAgency, useDashboard, useProfile, useRefreshBusiness } from "../../../lib/data";
 
 function TripCard({ b, highlight }: { b: Booking; highlight?: boolean }) {
   return (
@@ -33,6 +33,8 @@ function TripCard({ b, highlight }: { b: Booking; highlight?: boolean }) {
 export default function Business() {
   const profile = useProfile();
   const dash = useDashboard();
+  const membership = useAgency();
+  const invite = membership.data?.invites[0];
   const unread = useUnreadCount();
   const refresh = useRefreshBusiness();
   const goLive = useMutation({
@@ -115,6 +117,11 @@ export default function Business() {
         </Card>
 
         <View style={{ gap: space.md, marginTop: space.md }}>
+          {invite && !p.agency ? (
+            <Banner tone="info" icon="business" title={`${invite.agency.name} invited you`} body="Join their team: they set your trips and prices, give you a car and pay you directly.">
+              <Button title="View invite" small kind="secondary" onPress={() => router.push("/agency")} style={{ marginTop: space.sm, alignSelf: "flex-start" }} />
+            </Banner>
+          ) : null}
           {p.is_on_hold ? <Banner tone="danger" title="Your account is on hold" body={`${p.hold_reason}. Contact support to reactivate.`} /> : null}
           {p.review_status === "pending" ? <Banner tone="info" icon="time" title="Verification in progress" body="We're reviewing your profile and documents — usually within 24–48 hours." /> : null}
           {p.review_status === "rejected" ? (

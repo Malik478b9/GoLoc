@@ -1,5 +1,6 @@
 from django.urls import path
 
+from . import agency_views as av
 from . import views as v
 
 urlpatterns = [
@@ -10,6 +11,13 @@ urlpatterns = [
     path("captains/<uuid:pk>/review/", v.CaptainReviewView.as_view()),
     path("captains/<uuid:pk>/hold/", v.CaptainHoldView.as_view()),
     path("captains/<uuid:pk>/feature/", v.CaptainFeatureView.as_view()),
+    path("captains/<uuid:pk>/verify/", v.CaptainVerifyView.as_view()),
+    path("agencies/", av.AgencyListView.as_view()),
+    path("agencies/<uuid:pk>/", av.AgencyDetailView.as_view()),
+    path("agencies/<uuid:pk>/review/", av.AgencyReviewView.as_view()),
+    path("agencies/<uuid:pk>/hold/", av.AgencyHoldView.as_view()),
+    path("agencies/documents/<uuid:pk>/file/", av.AgencyDocumentFileView.as_view()),
+    path("agencies/documents/<uuid:pk>/review/", av.AgencyDocumentReviewView.as_view()),
     path("documents/", v.DocumentQueueView.as_view()),
     path("documents/<uuid:pk>/review/", v.DocumentReviewView.as_view()),
     path("documents/<uuid:pk>/file/", v.DocumentFileView.as_view()),

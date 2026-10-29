@@ -21,6 +21,8 @@ export type Tier = "standard" | "normal" | "medium" | "lavish";
 export type Service = {
   id: string;
   kind: ServiceKind;
+  /** Captain's own copy of an agency trip: the agency sets it, the Captain can't edit it. */
+  managed_by_agency?: boolean;
   title: string;
   description: string;
   category: string;
@@ -59,10 +61,25 @@ export type CaptainCard = {
   rating_count: number;
   trips_completed: number;
   is_featured: boolean;
+  /** GoLoc Verified badge (granted by Admin; a paid plan later). */
+  is_verified: boolean;
+  /** The agency this Captain works for, if any. */
+  agency_name?: string | null;
   from_price: number | null;
   has_package: boolean;
   has_guide: boolean;
   saved?: boolean;
+};
+
+export type DayStatus = "free" | "booked" | "blocked" | "off" | "past";
+export type WeeklySlot = { weekday: number; is_available: boolean; start_time: string; end_time: string };
+/** GET /captains/<id>/calendar/ */
+export type CaptainCalendar = {
+  from: string;
+  to: string;
+  unavailable: string[];
+  days: { date: string; status: DayStatus }[];
+  weekly: WeeklySlot[];
 };
 
 export type Review = {
@@ -152,6 +169,8 @@ export type Booking = {
   /** Captains see the name; the number only once the trip is paid and the traveler has shared it. */
   traveler: { id?: string; name: string; phone?: string; phone_masked?: string };
   city_name: string;
+  /** Set when the Captain works for an agency: it set the price and receives the earnings. */
+  agency_name?: string | null;
   fare: number;
   total: number;
   captain_net?: number;

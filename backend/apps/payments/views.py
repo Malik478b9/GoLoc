@@ -190,10 +190,14 @@ def result_page(request):
 # ---------------------------------------------------------------- captain wallet
 class LedgerSerializer(serializers.ModelSerializer):
     booking_code = serializers.CharField(source="booking.code", default=None)
+    paid_to_agency = serializers.SerializerMethodField(help_text="Earned on an agency trip: the money went to the agency.")
 
     class Meta:
         model = LedgerEntry
-        fields = ["id", "kind", "amount", "note", "booking_code", "created_at"]
+        fields = ["id", "kind", "amount", "note", "booking_code", "paid_to_agency", "created_at"]
+
+    def get_paid_to_agency(self, obj):
+        return obj.agency_id is not None
 
 
 class PayoutSerializer(serializers.ModelSerializer):
@@ -207,10 +211,15 @@ class WalletView(APIView):
 
     def get(self, request):
         captain = my_profile(request)
+        # Every trip they did, agency ones included (marked), so they see all their work; the balance is only their own.
         entries = LedgerEntry.objects.filter(captain=captain).select_related("booking")[:30]
         payouts = Payout.objects.filter(captain=captain)[:20]
+        agency = captain.agency
         return Response({
             **services.wallet(captain),
+            "agency": {"code": agency.code, "name": agency.name} if agency else None,
+            "agency_earned": LedgerEntry.objects.filter(captain=captain, agency__isnull=False,
+                                                        kind=LedgerEntry.Kind.TRIP_EARNING).aggregate(s=Sum("amount"))["s"] or 0,
             "ledger": LedgerSerializer(entries, many=True).data,
             "payouts": PayoutSerializer(payouts, many=True).data,
             "payout_account": getattr(getattr(captain, "payout_account", None), "masked", None),

@@ -1,0 +1,76 @@
+/* Shared styles for GoLoc's policy pages (privacy, terms, refunds, captain agreement, contact). */
+:root {
+  --night: #0B2324; --ink: #101C1B; --ink2: #3A4846; --muted: #6B746F;
+  --cream: #FFF6E5; --paper: #FFFCF6; --gold: #FFB627; --pink: #FF3D7F; --teal: #14B8A6;
+  --line: rgba(16, 28, 27, .12);
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; overflow-x: clip; }
+body { font-family: var(--sans); color: var(--ink); background: var(--paper); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+::selection { background: var(--gold); color: var(--night); }
+
+.top { background: var(--night); color: #fff; }
+.top .in { max-width: 1100px; margin: 0 auto; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: 9px; text-decoration: none; font-family: var(--display); font-weight: 800; font-size: 23px; letter-spacing: -.03em; color: #fff; }
+.logo svg { width: 28px; height: 28px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tabs a { text-decoration: none; font-weight: 600; font-size: 14px; color: rgba(255,255,255,.72); padding: 7px 13px; border-radius: 999px; }
+.tabs a:hover { color: #fff; background: rgba(255,255,255,.08); }
+.tabs a[aria-current="page"] { background: var(--gold); color: var(--night); }
+
+.hero { background: var(--night); color: #fff; padding: 40px 0 64px; }
+.hero .in { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.hero h1 { font-family: var(--display); font-weight: 800; letter-spacing: -.035em; line-height: 1; font-size: clamp(40px, 6vw, 72px); }
+.hero p { margin-top: 14px; color: rgba(255,255,255,.72); max-width: 680px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.meta span { font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; display: grid; grid-template-columns: 240px 1fr; gap: 56px; }
+.toc { position: sticky; top: 24px; align-self: start; font-size: 14px; }
+.toc b { display: block; font-family: var(--display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.toc a { display: block; text-decoration: none; color: var(--ink2); padding: 5px 0 5px 12px; border-left: 2px solid var(--line); }
+.toc a:hover { color: var(--ink); border-color: var(--pink); }
+
+article { max-width: 720px; }
+article .summary { background: var(--cream); border: 2px solid var(--night); border-radius: 22px; padding: 22px 24px; box-shadow: 6px 6px 0 var(--gold); margin-bottom: 40px; }
+article .summary h2 { margin-top: 0; font-size: 20px; }
+article h2 { font-family: var(--display); font-weight: 800; letter-spacing: -.02em; font-size: 26px; line-height: 1.2; margin: 44px 0 12px; scroll-margin-top: 20px; }
+article h3 { font-size: 17px; margin: 22px 0 6px; }
+article p, article li { color: var(--ink2); font-size: 16.5px; }
+article p + p { margin-top: 12px; }
+article ul, article ol { padding-left: 22px; margin: 10px 0; }
+article li { margin: 6px 0; }
+article li::marker { color: var(--pink); }
+article strong { color: var(--ink); }
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 15.5px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--display); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+td:last-child { font-weight: 700; color: var(--ink); }
+.card { border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; background: #fff; margin: 14px 0; }
+.card p { margin: 2px 0; }
+.note { font-size: 14px; color: var(--muted); }
+
+.foot { background: var(--night); color: rgba(255,255,255,.6); font-size: 14px; }
+.foot .in { max-width: 1100px; margin: 0 auto; padding: 28px 24px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.foot a { color: rgba(255,255,255,.8); text-decoration: none; margin-right: 16px; }
+.foot a:hover { color: var(--gold); }
+
+@media (max-width: 860px) {
+  .page { grid-template-columns: 1fr; gap: 24px; padding: 32px 16px 64px; }
+  .toc { position: static; }
+  .top .in, .hero .in, .foot .in { padding-left: 16px; padding-right: 16px; }
+  table, thead, tbody, tr, th, td { font-size: 14.5px; }
+}
+@media print {
+  .top, .toc, .foot { display: none; }
+  .hero { background: none; color: #000; padding: 0 0 12px; }
+  .hero p, .meta span { color: #333; background: none; }
+  .page { display: block; padding: 0; }
+  article .summary { box-shadow: none; }
+}
+
+/* Business details not filled in yet: impossible to miss. */
+mark[data-fill] { background: var(--gold); color: var(--night); padding: 0 4px; border-radius: 4px; font-weight: 700; }

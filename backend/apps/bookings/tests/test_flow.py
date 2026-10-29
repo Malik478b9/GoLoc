@@ -173,12 +173,14 @@ class HappyPathTests(FlowBase):
     def test_package_tier_pricing(self):
         pkg = t.make_live_captain("Leh Host", package=True).services.get(kind="package")
         pkg.captain.weekly_slots.filter(weekday=6).update(is_available=False)
+        start = t.next_weekday(10)
+        start += timedelta(days=(2 - start.weekday()) % 7)  # a Wednesday, so the 6 days always include a Sunday
         res = self.trav.post("/api/v1/bookings/", {"service_id": str(pkg.id), "guests": 2, "tier": "medium",
-                                                   "start_date": str(t.next_weekday(10))}, format="json")
+                                                   "start_date": str(start)}, format="json")
         self.assertEqual(res.status_code, 409, "default slots are Mon–Sat; a 6-day trip spans a Sunday")
         pkg.captain.weekly_slots.update(is_available=True)
         res = self.trav.post("/api/v1/bookings/", {"service_id": str(pkg.id), "guests": 2, "tier": "medium",
-                                                   "start_date": str(t.next_weekday(10))}, format="json")
+                                                   "start_date": str(start)}, format="json")
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data["fare"], 96000)
         self.assertEqual(res.data["total"], 96000 + 49 * 2 * 6)
@@ -436,3 +438,51 @@ class PrivacyAndAvailabilityTests(FlowBase):
     def test_profile_shows_everything_public(self):
         res = self.client.get(f"/api/v1/captains/{self.captain.code}/").json()
         self.assertTrue(set(res["stats"]) >= {"trips_completed", "reviews", "reels", "photos", "itineraries_prepared"})
+
+
+class DiscoverySearchTests(FlowBase):
+    def test_search_across_cities_by_name_and_city(self):
+        jaipur = t.make_live_captain("Rohit Singh", city_slug="jaipur")
+        everyone = self.client.get("/api/v1/captains/").data
+        self.assertEqual(everyone["count"], 2, "no city = every live city")
+        found = self.client.get("/api/v1/captains/?q=jaipur").data["results"]
+        self.assertEqual([c["code"] for c in found], [jaipur.code])
+        found = self.client.get("/api/v1/captains/?q=rohit").data["results"]
+        self.assertEqual([c["city_slug"] for c in found], ["jaipur"])
+
+    def test_filters_for_group_trips_experience_and_verified(self):
+        vet = t.make_live_captain("Veteran Vikram")
+        CaptainProfile.objects.filter(pk=vet.pk).update(years_experience=12, trips_completed=40, is_verified=True)
+        vet.services.update(max_guests=10)
+        codes = lambda qs: [c["code"] for c in self.client.get(f"/api/v1/captains/?{qs}").data["results"]]
+        self.assertEqual(codes("guests=8"), [vet.code])
+        self.assertEqual(codes("min_trips=20"), [vet.code])
+        self.assertEqual(codes("min_exp=10"), [vet.code])
+        self.assertEqual(codes("verified=1"), [vet.code])
+        self.assertEqual(codes("guests=4")[0], vet.code, "verified Captains rank first")
+        self.assertTrue(self.client.get("/api/v1/captains/?verified=1").data["results"][0]["is_verified"])
+
+    def test_dates_show_only_free_captains(self):
+        date = t.next_weekday()
+        free = t.make_live_captain("Free Farhan")
+        self.booked_and_paid(date)  # self.captain is now full that day
+        on_leave = t.make_live_captain("Leave Lata")
+        on_leave.blocked_dates.create(date=date + timedelta(days=1))
+        codes = lambda qs: {c["code"] for c in self.client.get(f"/api/v1/captains/?{qs}").data["results"]}
+        self.assertEqual(codes(f"start={date}"), {free.code, on_leave.code})
+        self.assertEqual(codes(f"start={date}&end={date + timedelta(days=1)}"), {free.code})
+        later = date + timedelta(days=7)
+        self.assertIn(self.captain.code, codes(f"start={later}"))
+        self.assertEqual(self.client.get(f"/api/v1/captains/?start={date}&end={date - timedelta(days=1)}").status_code, 400)
+        past = timezone.localdate() - timedelta(days=1)
+        self.assertEqual(self.client.get(f"/api/v1/captains/?start={past}").status_code, 400)
+
+    def test_calendar_gives_each_day_a_status(self):
+        date = t.next_weekday()
+        self.booked_and_paid(date)
+        self.captain.blocked_dates.create(date=date + timedelta(days=1))
+        self.captain.weekly_slots.filter(weekday=(date + timedelta(days=2)).weekday()).update(is_available=False)
+        cal = self.client.get(f"/api/v1/captains/{self.captain.code}/calendar/?from={date}&days=4").data
+        self.assertEqual([d["status"] for d in cal["days"]], ["booked", "blocked", "off", "free"])
+        self.assertEqual(len(cal["weekly"]), 7)
+        self.assertEqual(cal["unavailable"], [d["date"] for d in cal["days"][:3]])

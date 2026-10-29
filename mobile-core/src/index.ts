@@ -22,3 +22,4 @@ export * from "./components/MapView";
 export * from "./components/SignIn";
 export * from "./components/Itinerary";
 export * from "./components/AIAssist";
+export * from "./components/Availability";

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import { apiError, get, type User } from "../api/client";
+import { AgencyDetail, AgencyList } from "./Agencies";
 import { BookingDetail, BookingList } from "./Bookings";
 import { CaptainDetail, CaptainList } from "./Captains";
 import Dashboard from "./Dashboard";
@@ -12,10 +13,11 @@ import { SOSDetail, SOSList } from "./Safety";
 import { Tickets } from "./Tickets";
 import "./console.css";
 
-const NAV: { path: string; label: string; icon: string; mobile?: boolean; badge?: "sos_open" | "captains_pending" | "tickets_open" | "payouts" }[] = [
+const NAV: { path: string; label: string; icon: string; mobile?: boolean; badge?: "sos_open" | "captains_pending" | "agencies_pending" | "tickets_open" | "payouts" }[] = [
   { path: "dashboard", label: "Command Center", icon: "⌂", mobile: true },
   { path: "sos", label: "Safety / SOS", icon: "!", mobile: true, badge: "sos_open" },
   { path: "captains", label: "Captains", icon: "◎", mobile: true, badge: "captains_pending" },
+  { path: "agencies", label: "Agencies", icon: "▤", badge: "agencies_pending" },
   { path: "bookings", label: "Bookings", icon: "▣", mobile: true },
   { path: "payouts", label: "Payouts & refunds", icon: "₹", badge: "payouts" },
   { path: "tickets", label: "Disputes & help", icon: "⚖", badge: "tickets_open" },
@@ -25,7 +27,7 @@ const NAV: { path: string; label: string; icon: string; mobile?: boolean; badge?
   { path: "audit", label: "Audit log", icon: "≡" },
 ];
 
-type Dash = { sos_open: number; captains_pending: number; tickets_open: number; payouts_pending: { n: number } };
+type Dash = { sos_open: number; captains_pending: number; agencies_pending: number; tickets_open: number; payouts_pending: { n: number } };
 type LookupHit = { type: string; id: string; label: string };
 
 export default function Console({ user, onLogout }: { user: User; onLogout: () => void }) {
@@ -58,13 +60,14 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
   const open = (h: LookupHit) => {
     setHits(null);
     setQ("");
-    const routes: Record<string, string> = { captain: "captains", booking: "bookings", sos: "sos", payout: "payouts", ticket: "tickets", user: "users" };
-    go(`/${routes[h.type] ?? "dashboard"}${["captain", "booking", "sos"].includes(h.type) ? `/${h.id}` : ""}`);
+    const routes: Record<string, string> = { agency: "agencies", captain: "captains", booking: "bookings", sos: "sos", payout: "payouts", ticket: "tickets", user: "users" };
+    go(`/${routes[h.type] ?? "dashboard"}${["agency", "captain", "booking", "sos"].includes(h.type) ? `/${h.id}` : ""}`);
   };
 
   let page: React.ReactNode;
   switch (section) {
     case "captains": page = id ? <CaptainDetail id={id} /> : <CaptainList />; break;
+    case "agencies": page = id ? <AgencyDetail id={id} /> : <AgencyList />; break;
     case "bookings": page = id ? <BookingDetail id={id} /> : <BookingList />; break;
     case "sos": page = id ? <SOSDetail id={id} /> : <SOSList />; break;
     case "payouts": page = <Payouts />; break;
@@ -101,7 +104,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
           <button className="icon only-mobile" onClick={() => setMenu(true)} aria-label="Menu">☰</button>
           <form className="lookup" onSubmit={lookup}>
             <span>⌕</span>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="CAP-1001 · BKG-8001 · PO- · SOS- · TKT- · phone" aria-label="Lookup by ID" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="CAP-1001 · AGY-1001 · BKG-8001 · PO- · SOS- · TKT- · phone" aria-label="Lookup by ID" />
           </form>
           {badge("sos_open") ? <a className="sos-pill" href="#/sos">🚨 {badge("sos_open")} SOS</a> : null}
         </header>

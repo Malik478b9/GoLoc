@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Q
@@ -5,7 +6,7 @@ from django.utils import timezone
 
 from apps.common.models import next_public_code
 
-from .models import CaptainProfile, VerificationDocument, WeeklySlot
+from .models import BlockedDate, CaptainProfile, VerificationDocument, WeeklySlot
 
 MOTOR_KINDS = {"car", "suv", "motorcycle", "tempo"}
 
@@ -37,16 +38,24 @@ class _Calendar:
             busy = busy.exclude(pk=exclude_booking_id)
         self.busy = list(busy.values_list("start_date", "end_date"))
 
-    def reason(self, day) -> str | None:
-        name = self.captain.name
+    def status(self, day) -> str:
+        """free | off (not a working weekday) | blocked (day off) | booked (no capacity left)."""
         slot = self.slots.get(day.weekday())
         if slot is None or not slot.is_available:
-            return f"{name} doesn't work on {day:%A}s."
+            return "off"
         if day in self.blocked:
-            return f"{name} is unavailable on {day:%d %b}."
+            return "blocked"
         if sum(1 for s, e in self.busy if s <= day <= e) >= self.captain.max_bookings_per_day:
-            return f"{name} is fully booked on {day:%d %b}."
-        return None
+            return "booked"
+        return "free"
+
+    def reason(self, day) -> str | None:
+        name = self.captain.name
+        return {
+            "off": f"{name} doesn't work on {day:%A}s.",
+            "blocked": f"{name} is unavailable on {day:%d %b}.",
+            "booked": f"{name} is fully booked on {day:%d %b}.",
+        }.get(self.status(day))
 
 
 def unavailable_reason(captain: CaptainProfile, start, end, exclude_booking_id=None) -> str | None:
@@ -84,16 +93,46 @@ def nearest_available(captain: CaptainProfile, start, days: int, *, count=3, win
     return options
 
 
-def booked_dates(captain: CaptainProfile, start, end) -> list:
-    """Dates in range where the Captain can't take anything new (for the traveler's calendar)."""
+def day_statuses(captain: CaptainProfile, start, end) -> list[dict]:
+    """Every date in range with its status, for the month view on a Captain's profile."""
     cal = _Calendar(captain, start, end)
-    return [day for day in dates_between(start, end) if cal.reason(day)]
+    today = timezone.localdate()
+    return [{"date": day, "status": "past" if day < today else cal.status(day)} for day in dates_between(start, end)]
+
+
+def free_for_trip(capacity: dict, start, end) -> set:
+    """
+    Which Captains can take a new trip on every day of [start, end].
+    `capacity` maps Captain id → max_bookings_per_day. Three queries however many Captains.
+    """
+    from apps.bookings.models import Booking
+
+    ids = list(capacity)
+    days = list(dates_between(start, end))
+    needed = {d.weekday() for d in days}
+    working = defaultdict(set)
+    for cid, weekday in WeeklySlot.objects.filter(captain_id__in=ids, is_available=True).values_list("captain_id", "weekday"):
+        working[cid].add(weekday)
+    blocked = set(BlockedDate.objects.filter(captain_id__in=ids, date__range=(start, end)).values_list("captain_id", flat=True))
+    busy = defaultdict(list)
+    for cid, s, e in Booking.objects.filter(captain_id__in=ids, status__in=Booking.HOLDS_SLOT, start_date__lte=end,
+                                            end_date__gte=start).values_list("captain_id", "start_date", "end_date"):
+        busy[cid].append((s, e))
+    return {
+        cid for cid, limit in capacity.items()
+        if cid not in blocked and needed <= working[cid]
+        and all(sum(1 for s, e in busy[cid] if s <= d <= e) < limit for d in days)
+    }
 
 
 def required_documents(captain: CaptainProfile) -> list[str]:
     required = [VerificationDocument.DocType.ID_PROOF]
-    if captain.vehicles.filter(is_active=True, kind__in=MOTOR_KINDS).exists():
-        required += [VerificationDocument.DocType.DRIVING_LICENCE, VerificationDocument.DocType.VEHICLE_RC]
+    motor = captain.vehicles.filter(is_active=True, kind__in=MOTOR_KINDS)
+    if motor.exists():
+        required.append(VerificationDocument.DocType.DRIVING_LICENCE)
+    # An agency's cars are its own paperwork; the Captain only shows the RC of a car they own.
+    if motor.filter(agency__isnull=True).exists():
+        required.append(VerificationDocument.DocType.VEHICLE_RC)
     return required
 
 
@@ -104,14 +143,17 @@ def checklist(captain: CaptainProfile) -> dict:
     required = required_documents(captain)
     docs_uploaded = all(docs.get(t) in {"pending", "approved"} for t in required)
     docs_approved = all(docs.get(t) == "approved" for t in required)
+    agency = captain.agency
     items = [
         {"key": "profile", "label": "Business profile (bio, languages, categories)",
          "done": bool(captain.bio.strip() and captain.languages and captain.categories)},
         {"key": "photo", "label": "Profile photo", "done": bool(captain.avatar)},
-        {"key": "service", "label": "At least one service with prices", "done": captain.services.filter(is_active=True).exists()},
+        {"key": "service", "label": f"{agency.name} has listed a trip for you" if agency else "At least one service with prices",
+         "done": captain.services.filter(is_active=True).exists()},
         {"key": "availability", "label": "Weekly availability", "done": captain.weekly_slots.filter(is_available=True).exists()},
         {"key": "documents", "label": "Verification documents uploaded", "done": docs_uploaded},
-        {"key": "payout", "label": "UPI or bank account for payouts", "done": hasattr(captain, "payout_account")},
+        {"key": "payout", "label": f"Payouts go to {agency.name}" if agency else "UPI or bank account for payouts",
+         "done": bool(agency) or hasattr(captain, "payout_account")},
         {"key": "approved", "label": "Approved by GoLoc", "done": captain.review_status == CaptainProfile.ReviewStatus.APPROVED and docs_approved},
     ]
     done = sum(1 for i in items if i["done"])
@@ -121,7 +163,8 @@ def checklist(captain: CaptainProfile) -> dict:
         "items": items,
         "percent": round(done * 100 / len(items)),
         "can_submit": can_submit,
-        "can_go_live": items[-1]["done"] and items[2]["done"] and not captain.is_on_hold,
+        "can_go_live": items[-1]["done"] and items[2]["done"] and not captain.is_on_hold
+        and (agency is None or agency.is_active_business),
         "required_documents": required,
     }
 
