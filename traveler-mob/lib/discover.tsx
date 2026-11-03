@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, DiscoverFeed, palette, space, T, toastError, TripPoster } from "@goloc/core";
+import { api, DiscoverFeed, fonts, gradients, LinearGradient, palette, Pressy, space, T, toastError, TripPoster } from "@goloc/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { memo } from "react";
-import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { FlatList, StyleSheet, View } from "react-native";
 
 /** Open "Build my trip" already set to this place. */
 export function startTrip(p: TripPoster) {
@@ -41,14 +41,7 @@ const VIBE_TINT: Record<string, string> = {
 
 /** Darkens the bottom of a photo so white text stays readable (stacked bands = a soft gradient). */
 function Scrim() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={{ flex: 1.1 }} />
-      <View style={{ flex: 0.6, backgroundColor: "rgba(10,25,26,0.18)" }} />
-      <View style={{ flex: 0.8, backgroundColor: "rgba(10,25,26,0.45)" }} />
-      <View style={{ flex: 1.3, backgroundColor: "rgba(10,25,26,0.8)" }} />
-    </View>
-  );
+  return <LinearGradient pointerEvents="none" colors={["rgba(7,26,27,0)", "rgba(7,26,27,0.15)", "rgba(7,26,27,0.6)", "rgba(7,26,27,0.94)"]} locations={[0, 0.35, 0.62, 1]} style={StyleSheet.absoluteFill} />;
 }
 
 function Pill({ icon, label, bg = "rgba(255,255,255,0.92)" }: { icon?: keyof typeof Ionicons.glyphMap; label: string; bg?: string }) {
@@ -61,9 +54,9 @@ function Pill({ icon, label, bg = "rgba(255,255,255,0.92)" }: { icon?: keyof typ
 }
 
 /** One swipeable trip poster: photo, place, catchy line, season, distance and a save heart. */
-export const PosterTile = memo(function PosterTile({ p, width = 250, onToggleSave }: { p: TripPoster; width?: number; onToggleSave: (p: TripPoster) => void }) {
+export const PosterTile = memo(function PosterTile({ p, width = 270, onToggleSave }: { p: TripPoster; width?: number; onToggleSave: (p: TripPoster) => void }) {
   return (
-    <Pressable onPress={() => startTrip(p)} style={({ pressed }) => [styles.tile, { width, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
+    <Pressy onPress={() => startTrip(p)} scaleTo={0.97} style={[styles.tile, { width }]}>
       {p.image ? (
         <Image source={{ uri: p.image }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={250} />
       ) : (
@@ -72,14 +65,16 @@ export const PosterTile = memo(function PosterTile({ p, width = 250, onToggleSav
       <Scrim />
       <View style={styles.tileTop}>
         {p.event ? <Pill icon="sparkles" label={p.event} bg={palette.marigold} /> : p.in_season ? <Pill icon="sunny" label="In season" bg={palette.marigold} /> : <Pill icon="calendar-outline" label={p.best_months} />}
-        <Pressable
+        <Pressy
           onPress={() => onToggleSave(p)}
           hitSlop={10}
+          haptic
+          scaleTo={0.75}
           accessibilityLabel={p.saved ? "Remove from saved" : "Save for later"}
           style={styles.heart}
         >
           <Ionicons name={p.saved ? "heart" : "heart-outline"} size={20} color={p.saved ? palette.coral : palette.ink} />
-        </Pressable>
+        </Pressy>
       </View>
       <View style={styles.tileBody}>
         <T style={styles.city} numberOfLines={1}>{p.city_name.toUpperCase()}</T>
@@ -89,12 +84,12 @@ export const PosterTile = memo(function PosterTile({ p, width = 250, onToggleSav
           <Ionicons name="location" size={12} color={palette.marigold} />
           <T style={styles.tileMeta} numberOfLines={1}>{p.name}{p.travel_hint ? ` · ${p.travel_hint}` : ""}</T>
         </View>
-        <View style={styles.plan}>
-          <T style={{ fontSize: 12, fontWeight: "800", color: palette.white }}>Plan this trip</T>
+        <LinearGradient colors={gradients.sunset as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.plan}>
+          <T style={{ fontSize: 12.5, fontFamily: fonts.bold, color: palette.white }}>Plan this trip</T>
           <Ionicons name="arrow-forward" size={13} color={palette.white} />
-        </View>
+        </LinearGradient>
       </View>
-    </Pressable>
+    </Pressy>
   );
 });
 
@@ -102,8 +97,8 @@ export const PosterTile = memo(function PosterTile({ p, width = 250, onToggleSav
 export function PosterRail({ title, subtitle, items, badge }: { title: string; subtitle: string; items: TripPoster[]; badge?: string }) {
   const toggle = useToggleSavedTrip();
   return (
-    <View style={{ marginTop: space.lg }}>
-      <View style={{ paddingHorizontal: space.lg, marginBottom: space.sm }}>
+    <View style={{ marginTop: space.xxl }}>
+      <View style={{ paddingHorizontal: space.lg, marginBottom: space.md }}>
         {badge ? (
           <View style={styles.badge}>
             <Ionicons name="sparkles" size={11} color={palette.night} />
@@ -118,9 +113,9 @@ export function PosterRail({ title, subtitle, items, badge }: { title: string; s
         data={items}
         keyExtractor={(p) => p.key}
         showsHorizontalScrollIndicator={false}
-        snapToInterval={250 + 12}
+        snapToInterval={270 + 14}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: space.lg, gap: 12 }}
+        contentContainerStyle={{ paddingHorizontal: space.lg, gap: 14 }}
         renderItem={({ item }) => <PosterTile p={item} onToggleSave={toggle} />}
       />
     </View>
@@ -128,16 +123,16 @@ export function PosterRail({ title, subtitle, items, badge }: { title: string; s
 }
 
 const styles = StyleSheet.create({
-  tile: { height: 340, borderRadius: 24, overflow: "hidden", backgroundColor: palette.night },
+  tile: { height: 360, borderRadius: 28, overflow: "hidden", backgroundColor: palette.night, shadowColor: "#0F1E1C", shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
   tileTop: { position: "absolute", top: 12, left: 12, right: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   heart: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" },
   tileBody: { position: "absolute", left: 14, right: 14, bottom: 14 },
   city: { fontSize: 11, fontWeight: "800", letterSpacing: 1.6, color: palette.marigold },
-  tileTitle: { fontSize: 21, lineHeight: 25, fontWeight: "800", color: palette.white, marginTop: 4, letterSpacing: -0.3 },
+  tileTitle: { fontSize: 23, lineHeight: 27, fontFamily: fonts.display, color: palette.white, marginTop: 4, letterSpacing: -0.3 },
   tileTag: { fontSize: 12.5, lineHeight: 17, color: "#E6EEEB", marginTop: 4 },
   tileFoot: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   tileMeta: { fontSize: 11.5, color: "#E6EEEB", flex: 1 },
-  plan: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, marginTop: 10, backgroundColor: palette.coral, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 },
+  plan: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, marginTop: 12, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4, maxWidth: 170 },
   badge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, backgroundColor: palette.marigold, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 6 },
 });

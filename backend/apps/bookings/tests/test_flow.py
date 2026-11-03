@@ -135,9 +135,23 @@ class HappyPathTests(FlowBase):
         res = self.admin.post(f"/api/v1/admin/sos/{sos_list[0]['id']}/", {"status": "resolved", "notes": "Called traveler, all ok"}, format="json")
         self.assertEqual(res.data["status"], "resolved")
 
-        # Complete → BR-2 wallet credit only now
+        # Complete → only on the last booked day, and only with the traveler's end PIN
         self.assertEqual(LedgerEntry.objects.filter(captain=self.captain).count(), 0)
-        res = self.cap.post(f"/api/v1/bookings/{code}/complete/")
+        end_pin = Booking.objects.get(code=code).end_pin
+        self.assertEqual(len(end_pin), 4)
+        self.assertIsNone(self.cap.get(f"/api/v1/bookings/{code}/").data["end_pin"], "captain never sees the end PIN")
+        Booking.objects.filter(code=code).update(end_date=timezone.localdate() + timedelta(days=2))
+        self.assertIsNone(self.trav.get(f"/api/v1/bookings/{code}/").data["end_pin"], "end PIN appears only on the last day")
+        self.assertFalse(self.cap.get(f"/api/v1/bookings/{code}/").data["actions"]["complete"])
+        res = self.cap.post(f"/api/v1/bookings/{code}/complete/", {"pin": end_pin})
+        self.assertEqual((res.status_code, res.data["code"]), (409, "too_early"))
+        self.assertEqual(self.trav.post(f"/api/v1/bookings/{code}/complete/").status_code, 409)
+        Booking.objects.filter(code=code).update(end_date=timezone.localdate())
+        self.assertEqual(self.trav.get(f"/api/v1/bookings/{code}/").data["end_pin"], end_pin)
+        self.assertEqual(self.cap.post(f"/api/v1/bookings/{code}/complete/").status_code, 400, "no PIN, no completion")
+        wrong = "0000" if end_pin != "0000" else "1111"
+        self.assertEqual(self.cap.post(f"/api/v1/bookings/{code}/complete/", {"pin": wrong}).data["code"], "bad_pin")
+        res = self.cap.post(f"/api/v1/bookings/{code}/complete/", {"pin": end_pin})
         self.assertEqual(res.data["status"], "completed")
         wallet = self.cap.get("/api/v1/payments/wallet/").data
         self.assertEqual(wallet["available"], 3198)
@@ -162,10 +176,19 @@ class HappyPathTests(FlowBase):
         self.assertEqual(res.data["status"], "paid")
         self.assertEqual(self.cap.get("/api/v1/payments/wallet/").data["paid_out"], 3198)
 
+    def test_traveler_can_end_trip_on_last_day(self):
+        booking = self.booked_and_paid()
+        Booking.objects.filter(pk=booking.pk).update(status="in_progress", start_date=timezone.localdate(), end_date=timezone.localdate(), end_pin="2468")
+        detail = self.trav.get(f"/api/v1/bookings/{booking.code}/").data
+        self.assertTrue(detail["actions"]["complete"])
+        res = self.trav.post(f"/api/v1/bookings/{booking.code}/complete/")
+        self.assertEqual(res.data["status"], "completed")
+        self.assertEqual(LedgerEntry.objects.filter(booking=booking).count(), 1)
+
     def test_failed_payout_returns_money(self):
         booking = self.booked_and_paid()
-        Booking.objects.filter(pk=booking.pk).update(status="in_progress")
-        self.cap.post(f"/api/v1/bookings/{booking.code}/complete/")
+        Booking.objects.filter(pk=booking.pk).update(status="in_progress", start_date=timezone.localdate(), end_date=timezone.localdate(), end_pin="4321")
+        self.assertEqual(self.cap.post(f"/api/v1/bookings/{booking.code}/complete/", {"pin": "4321"}).status_code, 200)
         payout = self.cap.post("/api/v1/payments/payouts/", {"amount": 1000}, format="json").data
         self.admin.post(f"/api/v1/admin/payouts/{payout['id']}/settle/", {"paid": False, "note": "Wrong UPI"}, format="json")
         self.assertEqual(self.cap.get("/api/v1/payments/wallet/").data["available"], booking.captain_net)

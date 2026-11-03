@@ -32,7 +32,7 @@ export function BookingList() {
       <div className="page-head"><div><div className="eyebrow">Operations</div><h1>Bookings</h1></div></div>
       <div className="filters">
         {STATUSES.map((s) => <button key={s} className={`chip ${status === s ? "on" : ""}`} onClick={() => { setStatus(s); setPage(1); }}>{s ? title(s) : "All"}</button>)}
-        <input className="search" placeholder="BKG-ID, CAP-ID, traveler name or phone" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+        <input className="search" placeholder="BKG-ID, GLAC-ID, traveler name or phone" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
       </div>
       {error ? <ErrorBox error={error} retry={reload} /> : !data && loading ? <Loading /> : !data?.results.length ? <Empty>No bookings.</Empty> : (
         <div className="list">

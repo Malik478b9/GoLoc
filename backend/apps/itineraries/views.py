@@ -210,7 +210,7 @@ class PublishView(APIView):
 
 # ---------------------------------------------------------------- travelers
 class CaptainItinerariesView(APIView):
-    """GET /captains/<id or CAP-code>/itineraries/ — a Captain's published default itineraries."""
+    """GET /captains/<id or GLAC-code>/itineraries/ — a Captain's published default itineraries."""
 
     permission_classes = [AllowAny]
 

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, Conversation, fonts, Paginated, palette, useUnreadCount, useWide } from "@goloc/core";
+import { api, Conversation, FloatingTabBar, fonts, Paginated, palette, useUnreadCount, useWide } from "@goloc/core";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs } from "expo-router";
 import type { ColorValue } from "react-native";
@@ -17,6 +17,8 @@ export default function TabsLayout() {
   const unreadChats = (chats.data?.results ?? []).reduce((n, c) => n + c.unread, 0);
   return (
     <Tabs
+      // Phone: our floating animated bar. Desktop: the labelled sidebar below.
+      tabBar={wide ? undefined : (p) => <FloatingTabBar {...(p as any)} />}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: palette.rickshaw,

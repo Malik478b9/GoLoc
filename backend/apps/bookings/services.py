@@ -236,24 +236,45 @@ def start_trip(booking, captain_user, pin: str) -> Booking:
             raise bad_request("That PIN doesn't match. Ask the traveler for the 4-digit trip PIN.", "bad_pin")
         booking.status = S.IN_PROGRESS
         booking.started_at = timezone.now()
-        booking.save(update_fields=["status", "started_at", "updated_at"])
+        booking.end_pin = _new_pin(other_than=booking.start_pin)
+        booking.save(update_fields=["status", "started_at", "end_pin", "updated_at"])
         log(booking, captain_user, "captain", "started", "Trip started")
     booking.captain.touch()
     notify(booking.traveler, "traveler", "trip_started", "Your trip has started",
-           "Live tracking and SOS are on. Have a great time!", {"booking_id": booking.id})
+           f"Live tracking and SOS are on. On {booking.end_date:%d %b}, give your Captain the end PIN {booking.end_pin} "
+           "only when the trip is really over.", {"booking_id": booking.id})
     return booking
 
 
-def complete_trip(booking, user, role="captain") -> Booking:
+def _new_pin(other_than: str = "") -> str:
+    while True:
+        pin = f"{secrets.randbelow(10000):04d}"
+        if pin != other_than:
+            return pin
+
+
+def complete_trip(booking, user, role="captain", pin: str | None = None) -> Booking:
+    """
+    A trip ends on (or after) its last booked day, and only with the traveler's say-so:
+    the Captain enters the traveler's end PIN, or the traveler ends it in their app.
+    Admin can force-complete at any time (disputes, no-shows).
+    """
     from apps.payments import services as payments
 
     with transaction.atomic():
         booking = _lock(booking)
         _require(booking, S.IN_PROGRESS, message="Only trips in progress can be completed.")
+        if role != "admin":
+            if timezone.localdate() < booking.end_date:
+                raise conflict(f"This trip is booked until {booking.end_date:%d %b}. It can be completed on that day.", "too_early")
+            if role == "captain" and not (pin and booking.end_pin and secrets.compare_digest(str(pin).strip(), booking.end_pin)):
+                raise bad_request("That end PIN doesn't match. Ask the traveler for the 4-digit end PIN in their app.", "bad_pin")
         booking.status = S.COMPLETED
         booking.completed_at = timezone.now()
         booking.save(update_fields=["status", "completed_at", "updated_at"])
-        log(booking, user, role, "completed", "Trip completed")
+        log(booking, user, role, "completed", {"captain": "Trip completed with the traveler's end PIN",
+                                               "traveler": "Traveler ended the trip",
+                                               "admin": "Completed by GoLoc"}.get(role, "Trip completed"))
         payments.credit_trip(booking)
         CaptainProfile.objects.filter(pk=booking.captain_id).update(
             last_active_at=timezone.now(), trips_completed=F("trips_completed") + 1

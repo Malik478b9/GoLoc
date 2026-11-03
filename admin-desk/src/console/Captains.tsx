@@ -40,7 +40,7 @@ export function CaptainList() {
       <div className="page-head"><div><div className="eyebrow">Marketplace</div><h1>Captains</h1></div></div>
       <div className="filters">
         {FILTERS.map(([v, l]) => <button key={v} className={`chip ${status === v ? "on" : ""}`} onClick={() => { setStatus(v); setPage(1); }}>{l}</button>)}
-        <input className="search" placeholder="Name, phone or CAP-ID" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+        <input className="search" placeholder="Name, phone or GLAC-ID" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
       </div>
       {error ? <ErrorBox error={error} retry={reload} /> : !data && loading ? <Loading /> : !data?.results.length ? <Empty>No Captains here.</Empty> : (
         <div className="list">

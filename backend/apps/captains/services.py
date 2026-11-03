@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
-from apps.common.models import next_public_code
+from apps.common.models import CAPTAIN_PREFIX, next_public_code
 
 from .models import BlockedDate, CaptainProfile, VerificationDocument, WeeklySlot
 
@@ -12,7 +12,7 @@ MOTOR_KINDS = {"car", "suv", "motorcycle", "tempo"}
 
 
 def create_profile(user, city, **fields) -> CaptainProfile:
-    profile = CaptainProfile.objects.create(code=next_public_code("CAP"), user=user, city=city, **fields)
+    profile = CaptainProfile.objects.create(code=next_public_code(CAPTAIN_PREFIX), user=user, city=city, **fields)
     WeeklySlot.objects.bulk_create([WeeklySlot(captain=profile, weekday=d, is_available=d < 6) for d in range(7)])
     return profile
 

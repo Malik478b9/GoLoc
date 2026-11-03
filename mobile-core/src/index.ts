@@ -13,6 +13,7 @@ export * from "./theme";
 export * from "./ui/feedback";
 export * from "./ui/inputs";
 export * from "./ui/layout";
+export * from "./ui/motion";
 export * from "./ui/primitives";
 export * from "./components/Chat";
 export * from "./components/Checkout";

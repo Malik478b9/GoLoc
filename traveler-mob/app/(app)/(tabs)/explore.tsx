@@ -106,7 +106,7 @@ export default function Explore() {
       </View>
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={palette.muted} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Name, city, trip or CAP-ID" placeholderTextColor={palette.muted} style={styles.input} autoCapitalize="none" returnKeyType="search" />
+        <TextInput value={q} onChangeText={setQ} placeholder="Name, city, trip or GLAC-ID" placeholderTextColor={palette.muted} style={styles.input} autoCapitalize="none" returnKeyType="search" />
         {q ? <Ionicons name="close-circle" size={18} color={palette.muted} onPress={() => setQ("")} /> : null}
       </View>
 

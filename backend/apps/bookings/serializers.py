@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.captains.models import ServiceOffer
@@ -75,6 +76,8 @@ class BookingDetailSerializer(BookingListSerializer):
     events = EventSerializer(many=True, read_only=True)
     actions = serializers.SerializerMethodField()
     start_pin = serializers.SerializerMethodField()
+    end_pin = serializers.SerializerMethodField()
+    can_complete_from = serializers.DateField(source="end_date", read_only=True)
     share_url = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
     refunded = serializers.SerializerMethodField()
@@ -85,11 +88,17 @@ class BookingDetailSerializer(BookingListSerializer):
         fields = BookingListSerializer.Meta.fields + [
             "service_id", "meeting_point", "note", "service_snapshot", "insurance_fee", "insurance_policy_no", "commission",
             "cancelled_by", "cancel_reason", "refund_percent", "refunded", "accepted_at", "confirmed_at", "started_at",
-            "completed_at", "cancelled_at", "start_pin", "share_url", "review", "itinerary", "traveler_shares_contact", "events", "actions",
+            "completed_at", "cancelled_at", "start_pin", "end_pin", "can_complete_from", "share_url", "review", "itinerary", "traveler_shares_contact", "events", "actions",
         ]
 
     def get_start_pin(self, obj):
         return obj.start_pin if self.role == "traveler" and obj.status == Booking.Status.CONFIRMED else None
+
+    def get_end_pin(self, obj):
+        # Only the traveler sees it, only during the trip, and only from the last booked day.
+        if self.role == "traveler" and obj.status == Booking.Status.IN_PROGRESS and timezone.localdate() >= obj.end_date:
+            return obj.end_pin or None
+        return None
 
     def get_share_url(self, obj):
         if self.role == "traveler" and obj.status in {Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS}:
@@ -119,10 +128,11 @@ class BookingDetailSerializer(BookingListSerializer):
     def get_actions(self, obj):
         S = Booking.Status
         s = obj.status
+        last_day = timezone.localdate() >= obj.end_date
         if self.role == "captain":
             return {
                 "accept": s == S.REQUESTED, "decline": s == S.REQUESTED, "cancel": s in (S.ACCEPTED, S.CONFIRMED),
-                "start": s == S.CONFIRMED, "complete": s == S.IN_PROGRESS, "track": s in (S.CONFIRMED, S.IN_PROGRESS),
+                "start": s == S.CONFIRMED, "complete": s == S.IN_PROGRESS and last_day, "track": s in (S.CONFIRMED, S.IN_PROGRESS),
                 "message": True,
             }
         if self.role == "traveler":
@@ -131,6 +141,7 @@ class BookingDetailSerializer(BookingListSerializer):
                 "track": s in (S.CONFIRMED, S.IN_PROGRESS), "sos": s in (S.CONFIRMED, S.IN_PROGRESS),
                 "review": s == S.COMPLETED and getattr(obj, "review", None) is None, "message": True,
                 "share_contact": s in (S.CONFIRMED, S.IN_PROGRESS),
+                "complete": s == S.IN_PROGRESS and last_day,
             }
         return {}
 

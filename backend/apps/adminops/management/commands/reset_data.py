@@ -8,7 +8,7 @@ Keeps: cities, emergency numbers, and admin (staff) accounts.
 Deletes: every traveler and Captain account and everything they created —
 profiles, services, documents, bookings, payments, payouts, reels, chats,
 reviews, tickets, notifications, uploaded files and the ID counters
-(so the next Captain is CAP-1001 and the next booking BKG-8001 again).
+(so the next Captain is GLAC-1001 and the next booking BKG-8001 again).
 """
 import shutil
 from pathlib import Path

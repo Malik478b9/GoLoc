@@ -7,6 +7,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Linking, StyleSheet, TextInput, View } from "react-native";
 
+import { EndTripSheet } from "../../../lib/EndTripSheet";
+
 export default function CaptainBooking() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const qc = useQueryClient();
@@ -15,7 +17,7 @@ export default function CaptainBooking() {
     queryFn: () => api.get<BookingDetail>(`/bookings/${id}/`),
     refetchInterval: (query) => (query.state.data?.status === "accepted" ? 10000 : false),
   });
-  const [sheet, setSheet] = useState<null | "decline" | "cancel" | "start">(null);
+  const [sheet, setSheet] = useState<null | "decline" | "cancel" | "start" | "complete">(null);
   const [reason, setReason] = useState("");
   const [pin, setPin] = useState("");
 
@@ -65,10 +67,14 @@ export default function CaptainBooking() {
       </Row>
     ) : a.start ? (
       <Button title={isTripDay ? "Start trip with PIN" : `Starts ${dateRange(b.start_date, b.start_date)}`} icon="key" disabled={!isTripDay} onPress={() => setSheet("start")} />
-    ) : a.complete ? (
+    ) : b.status === "in_progress" ? (
       <Row gap={10}>
         <Button title="Trip console" kind="secondary" icon="navigate" style={{ flex: 1 }} onPress={() => router.push(`/trip/${b.id}`)} />
-        <Button title="Complete trip" style={{ flex: 1 }} loading={act.isPending} onPress={() => act.mutate({ action: "complete" })} />
+        {a.complete ? (
+          <Button title="Complete with PIN" icon="key" style={{ flex: 1 }} onPress={() => setSheet("complete")} />
+        ) : (
+          <Button title={`Ends ${dateRange(b.can_complete_from, b.can_complete_from)}`} icon="lock-closed" disabled style={{ flex: 1 }} />
+        )}
       </Row>
     ) : undefined;
 
@@ -88,6 +94,10 @@ export default function CaptainBooking() {
         {b.status === "requested" && <Banner tone="warning" icon="time" title={`Respond within ${timeLeft(b.request_expires_at)}`} body="Requests expire automatically. Quick replies rank you higher." />}
         {b.status === "accepted" && <Banner tone="info" icon="card" title="Waiting for payment" body={`The traveler has ${timeLeft(b.payment_due_at)} to pay. You'll get a notification when it's confirmed.`} />}
         {b.status === "confirmed" && <Banner tone="success" title="Confirmed & paid" body="On the trip day, ask the traveler for their 4-digit trip PIN to start." />}
+        {b.status === "in_progress" && (
+          <Banner tone="info" icon="key" title={a.complete ? "Finish with the traveler's end PIN" : `Trip runs until ${dateRange(b.can_complete_from, b.can_complete_from)}`}
+            body={a.complete ? "When the trip is over, ask the traveler for the 4-digit end PIN in their app. You can't complete it without them." : "You can complete it on the last booked day, with the end PIN the traveler gets in their app."} />
+        )}
         {b.status === "completed" && (b.agency_name
           ? <Banner tone="success" title={`${money(b.captain_net)} credited to ${b.agency_name}`} body="Agency trips are paid to your agency, which pays you." />
           : <Banner tone="success" title={`${money(b.captain_net)} credited to your wallet`} body="Withdraw any time from Earnings." />)}
@@ -174,6 +184,8 @@ export default function CaptainBooking() {
       >
         <Field placeholder={sheet === "decline" ? "e.g. Fully booked that day" : "Reason (required)"} value={reason} onChangeText={setReason} maxLength={300} />
       </ConfirmSheet>
+
+      <EndTripSheet booking={b} visible={sheet === "complete"} onClose={() => setSheet(null)} />
 
       <Sheet visible={sheet === "start"} onClose={() => setSheet(null)} title="Enter trip PIN">
         <T style={{ marginBottom: space.lg }}>Ask {b.traveler.name.split(" ")[0]} for the 4-digit PIN shown in their app. This confirms you've met.</T>

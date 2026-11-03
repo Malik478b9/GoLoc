@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsCaptain, IsTraveler
 from apps.bookings import pricing
 from apps.cities.models import City
+from apps.common.models import normalize_captain_code
 from apps.common.api import bad_request, conflict, role_of
 from apps.common.files import validate_image
 from apps.notifications.service import notify_admins
@@ -466,8 +467,9 @@ class DiscoveryView(generics.ListAPIView):
 
 def _get_captain(id_or_code):
     qs = bookable_captains().prefetch_related("services", "vehicles")
-    if str(id_or_code).upper().startswith("CAP-"):
-        return get_object_or_404(qs, code=str(id_or_code).upper())
+    code = normalize_captain_code(id_or_code)
+    if code:
+        return get_object_or_404(qs, code=code)
     try:
         return get_object_or_404(qs, pk=id_or_code)
     except DjangoValidationError as exc:  # malformed UUID
@@ -475,7 +477,7 @@ def _get_captain(id_or_code):
 
 
 class CaptainDetailView(APIView):
-    """GET /captains/<id or CAP-code>/ — public profile with services, reels and reviews."""
+    """GET /captains/<id or GLAC-code>/ — public profile with services, reels and reviews."""
 
     permission_classes = [AllowAny]
 

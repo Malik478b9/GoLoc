@@ -5,8 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth";
-import { fonts, palette, radius, space } from "../theme";
+import { fonts, gradients, palette, radius, space } from "../theme";
 import { Field, Segmented } from "../ui/inputs";
+import { Appear, Float, LinearGradient, Orbs } from "../ui/motion";
 import { Button, T, useAccent, useWide } from "../ui/primitives";
 
 type Mode = "signin" | "signup";
@@ -99,21 +100,31 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.night }}>
+    <View style={{ flex: 1, backgroundColor: palette.night }}>
+      <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <Orbs colors={[palette.marigold, accent.main, palette.coral]} />
+    <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView style={[{ flex: 1 }, wide && styles.wideRow]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={[styles.hero, wide && styles.wideHero]}>
-          <View style={[styles.logo, { backgroundColor: accent.main }]}>
-            <T style={styles.logoText}>G</T>
-          </View>
-          <T variant="label" color={palette.marigold} style={{ marginTop: space.xl }}>{appName}</T>
-          <T style={styles.tagline}>{tagline}</T>
-          <T variant="body" color="#C9D6D2" style={{ marginTop: space.sm }}>{supporting}</T>
-          <View style={{ marginTop: space.lg, gap: 8 }}>
-            {bullets.map((b) => (
-              <View key={b} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <Ionicons name="checkmark-circle" size={16} color={palette.marigold} />
-                <T variant="small" color="#E6EEEB">{b}</T>
-              </View>
+          <Appear>
+            <Float distance={4}>
+              <LinearGradient colors={accent.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logo}>
+                <T style={styles.logoText}>G</T>
+                <View style={styles.logoDot} />
+              </LinearGradient>
+            </Float>
+          </Appear>
+          <Appear i={1}><T variant="label" color={palette.marigold} style={{ marginTop: space.xl }}>{appName}</T></Appear>
+          <Appear i={2}><T style={styles.tagline}>{tagline}</T></Appear>
+          <Appear i={3}><T variant="body" color="#C9D6D2" style={{ marginTop: space.sm }}>{supporting}</T></Appear>
+          <View style={{ marginTop: space.lg, gap: 10 }}>
+            {bullets.map((b, i) => (
+              <Appear key={b} i={4 + i}>
+                <View style={styles.bullet}>
+                  <View style={styles.bulletIcon}><Ionicons name="checkmark" size={12} color={palette.night} /></View>
+                  <T variant="small" color="#E6EEEB" style={{ flex: 1 }}>{b}</T>
+                </View>
+              </Appear>
             ))}
           </View>
         </View>
@@ -131,9 +142,9 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
                 {mode === "signin" ? "Enter your number and we'll text you a 6-digit code." : "Your name and number, then a 6-digit code. That's it."}
               </T>
               {mode === "signup" ? (
-                <Field label="Your name" placeholder="e.g. Ananya Reddy" value={name} onChangeText={setName} autoCapitalize="words" textContentType="name" autoFocus maxLength={150} />
+                <Field label="Your name" placeholder="e.g. Ananya Reddy" value={name} onChangeText={setName} autoCapitalize="words" textContentType="name" maxLength={150} />
               ) : null}
-              <Field label="Mobile number" prefix="+91" keyboardType="phone-pad" maxLength={14} placeholder="98765 43210" value={phone} onChangeText={setPhone} autoFocus={mode === "signin"} textContentType="telephoneNumber" onSubmitEditing={send} />
+              <Field label="Mobile number" prefix="+91" keyboardType="phone-pad" maxLength={14} placeholder="98765 43210" value={phone} onChangeText={setPhone} textContentType="telephoneNumber" onSubmitEditing={send} />
               {info ? <T variant="small" color={accent.main} style={{ marginBottom: space.sm }}>{info}</T> : null}
               {error ? <T variant="small" color={palette.coral} style={{ marginBottom: space.sm }}>{error}</T> : null}
               <Button title="Send code" onPress={send} loading={busy} />
@@ -172,6 +183,7 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </View>
   );
 }
 
@@ -181,9 +193,12 @@ const styles = StyleSheet.create({
   wideHero: { flexGrow: 0, flexShrink: 0, flexBasis: 460, width: 460, justifyContent: "center", paddingBottom: 0 },
   widePanel: { width: 440, borderRadius: 28 },
   hero: { flex: 1, paddingHorizontal: space.xl, justifyContent: "flex-end", paddingBottom: space.xl },
-  logo: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  logoText: { fontFamily: fonts.display, fontSize: 28, color: palette.white, lineHeight: 34 },
-  tagline: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: palette.white, marginTop: space.sm, letterSpacing: -0.5 },
-  panel: { backgroundColor: palette.paper, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: space.xl, paddingBottom: space.xxl },
-  code: { fontFamily: fonts.bold, fontSize: 30, letterSpacing: 14, textAlign: "center", backgroundColor: palette.white, borderRadius: radius.md, borderWidth: 1, borderColor: palette.lineStrong, paddingVertical: 14, color: palette.ink },
+  logo: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  logoText: { fontFamily: fonts.display, fontSize: 32, color: palette.white, lineHeight: 38 },
+  logoDot: { position: "absolute", right: 10, top: 10, width: 9, height: 9, borderRadius: 5, backgroundColor: palette.marigold },
+  tagline: { fontFamily: fonts.display, fontSize: 38, lineHeight: 44, color: palette.white, marginTop: space.sm, letterSpacing: -1 },
+  bullet: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 14, paddingVertical: 9, paddingHorizontal: 12 },
+  bulletIcon: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.marigold, alignItems: "center", justifyContent: "center" },
+  panel: { backgroundColor: palette.paper, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: space.xl, paddingBottom: space.xxl, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: -6 }, elevation: 16 },
+  code: { fontFamily: fonts.bold, fontSize: 32, letterSpacing: 16, textAlign: "center", backgroundColor: palette.white, borderRadius: radius.lg, borderWidth: 1.5, borderColor: palette.lineStrong, paddingVertical: 16, color: palette.ink },
 });

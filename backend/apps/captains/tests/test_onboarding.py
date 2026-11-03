@@ -23,7 +23,7 @@ class OnboardingTests(TestCase):
             "full_name": "Sana Mirza", "city_id": str(self.city.id), "bio": "Photography walks", "tagline": "Blue hour",
             "languages": ["English", "Telugu"], "categories": ["photography", "culture"], "years_experience": 5}, format="json")
         self.assertEqual(res.status_code, 200, res.data)
-        self.assertTrue(res.data["code"].startswith("CAP-"))
+        self.assertTrue(res.data["code"].startswith("GLAC-"))
         bad = self.cap.put("/api/v1/captain/profile/", {"languages": ["Klingon"]}, format="json")
         self.assertEqual(bad.status_code, 400)
 

@@ -52,7 +52,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
       const res = await get<{ results: LookupHit[] }>("/admin/lookup/", { q: q.trim() });
       if (res.results.length === 1) return open(res.results[0]);
       setHits(res.results);
-      if (!res.results.length) toast(`Nothing found for “${q}”. Try CAP-1001, BKG-8001 or a phone number.`, true);
+      if (!res.results.length) toast(`Nothing found for “${q}”. Try GLAC-1001, BKG-8001 or a phone number.`, true);
     } catch (err) {
       toast(apiError(err).message, true);
     }
@@ -104,7 +104,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
           <button className="icon only-mobile" onClick={() => setMenu(true)} aria-label="Menu">☰</button>
           <form className="lookup" onSubmit={lookup}>
             <span>⌕</span>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="CAP-1001 · AGY-1001 · BKG-8001 · PO- · SOS- · TKT- · phone" aria-label="Lookup by ID" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="GLAC-1001 · AGY-1001 · BKG-8001 · PO- · SOS- · TKT- · phone" aria-label="Lookup by ID" />
           </form>
           {badge("sos_open") ? <a className="sos-pill" href="#/sos">🚨 {badge("sos_open")} SOS</a> : null}
         </header>

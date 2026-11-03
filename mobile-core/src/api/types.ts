@@ -192,6 +192,10 @@ export type BookingDetail = Booking & {
   refund_percent: number | null;
   refunded: number;
   start_pin: string | null;
+  /** Traveler only, from the last booked day of a running trip. */
+  end_pin: string | null;
+  /** The first day the trip can be completed (its last booked day). */
+  can_complete_from: string;
   share_url: string | null;
   review: { rating: number; comment: string; captain_reply: string } | null;
   events: { kind: string; message: string; actor_role: string; created_at: string }[];

@@ -21,7 +21,7 @@ export const Field = forwardRef<React.ComponentRef<typeof TextInput>, FieldProps
             {labelRight}
           </Row>
         ) : null}
-        <View style={[styles.box, focused && { borderColor: accent.main }, !!error && { borderColor: palette.coral }, multiline && { alignItems: "flex-start" }]}>
+        <View style={[styles.box, focused && { borderColor: accent.main },!!error && { borderColor: palette.coral }, multiline && { alignItems: "flex-start" }]}>
           {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
           <TextInput
             ref={ref}
@@ -300,13 +300,13 @@ export function DateRangeCalendar({ start, end, onChange, disabled = [], minDate
 }
 
 const styles = StyleSheet.create({
-  box: { flexDirection: "row", alignItems: "center", backgroundColor: palette.white, borderRadius: radius.md, borderWidth: 1, borderColor: palette.lineStrong, paddingHorizontal: space.md },
-  input: { flex: 1, minHeight: 50, fontFamily: fonts.body, fontSize: 16, color: palette.ink },
+  box: { flexDirection: "row", alignItems: "center", backgroundColor: palette.white, borderRadius: radius.md, borderWidth: 1.5, borderColor: palette.line, paddingHorizontal: space.md + 2 },
+  input: { flex: 1, minHeight: 54, fontFamily: fonts.body, fontSize: 16, color: palette.ink },
   prefix: { fontFamily: fonts.bold, fontSize: 16, color: palette.ink2, marginRight: 6 },
   stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   seg: { flexDirection: "row", backgroundColor: palette.sand2, borderRadius: radius.md, padding: 4 },
-  segItem: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: 10 },
-  segActive: { backgroundColor: palette.white },
+  segItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 12 },
+  segActive: { backgroundColor: palette.white, shadowColor: "#0F1E1C", shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   segText: { fontFamily: fonts.bold, fontSize: 13, color: palette.muted },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   weekHead: { width: `${100 / 7}%`, textAlign: "center", fontFamily: fonts.bold, fontSize: 12, color: palette.muted, paddingVertical: 6 },

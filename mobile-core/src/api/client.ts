@@ -109,7 +109,7 @@ export function toApiError(error: unknown): ApiError {
   return new ApiError(e.response.status, d.detail || "Something went wrong.", d.code, d.fields, d.retry_after);
 }
 
-/** Small typed helpers: `const captain = await api.get<Captain>("/captains/CAP-1001/")` */
+/** Small typed helpers: `const captain = await api.get<Captain>("/captains/GLAC-1001/")` */
 export const api = {
   get: async <T>(url: string, params?: Record<string, any>) => (await http.get<T>(url, { params })).data,
   post: async <T>(url: string, body?: any) => (await http.post<T>(url, body)).data,

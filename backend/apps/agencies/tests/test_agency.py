@@ -3,6 +3,7 @@ import shutil
 import tempfile
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.agencies.models import Agency
 from apps.bookings.models import Booking
@@ -113,8 +114,8 @@ class AgencyFlowTests(TestCase):
         self.assertEqual(self.ag.get("/api/v1/agency/bookings/?status=requested").data["count"], 1)
         self.assertEqual(self.ag.post(f"/api/v1/agency/bookings/{code}/accept/").status_code, 200)
         self.pay(code)
-        Booking.objects.filter(code=code).update(status="in_progress")
-        self.assertEqual(cap.post(f"/api/v1/bookings/{code}/complete/").status_code, 200)
+        Booking.objects.filter(code=code).update(status="in_progress", start_date=timezone.localdate(), end_date=timezone.localdate(), end_pin="1357")
+        self.assertEqual(cap.post(f"/api/v1/bookings/{code}/complete/", {"pin": "1357"}).status_code, 200)
 
         booking = Booking.objects.get(code=code)
         entry = LedgerEntry.objects.get(booking=booking)

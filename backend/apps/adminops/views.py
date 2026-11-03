@@ -14,6 +14,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.models import normalize_captain_code
 from apps.accounts.permissions import IsAdmin
 from apps.agencies.models import Agency
 from apps.bookings import services as booking_services
@@ -90,15 +91,15 @@ class DashboardView(AdminView):
 
 
 class LookupView(AdminView):
-    """GET /admin/lookup/?q=CAP-1001 | BKG-8001 | PO-2001 | SOS-3001 | TKT-5001 | phone number (BR-7)"""
+    """GET /admin/lookup/?q=GLAC-1001 | BKG-8001 | PO-2001 | SOS-3001 | TKT-5001 | phone number (BR-7)"""
 
     def get(self, request):
         q = request.query_params.get("q", "").strip().upper()
         if not q:
-            raise bad_request("Enter a CAP-, BKG-, PO-, SOS-, TKT- ID or a phone number.", "empty")
+            raise bad_request("Enter a GLAC-, AGY-, BKG-, PO-, SOS-, TKT- ID or a phone number.", "empty")
         found = []
-        if q.startswith("CAP-") or q.isdigit() and len(q) == 4:
-            code = q if q.startswith("CAP-") else f"CAP-{q}"
+        code = normalize_captain_code(q)
+        if code:
             found += [{"type": "captain", "id": c.id, "label": f"{c.code} · {c.name}"} for c in
                       CaptainProfile.objects.filter(code=code).select_related("user")]
         if q.startswith("AGY-"):
@@ -143,7 +144,7 @@ class CaptainListView(AdminList):
             qs = qs.filter(city__slug=p["city"])
         if p.get("q"):
             q = p["q"].strip()
-            qs = qs.filter(Q(code__iexact=q) | Q(user__full_name__icontains=q) | Q(user__phone_number__contains=q))
+            qs = qs.filter(Q(code__iexact=normalize_captain_code(q) or q) | Q(user__full_name__icontains=q) | Q(user__phone_number__contains=q))
         return qs.order_by("submitted_at" if st == "pending" else "-created_at")
 
 
@@ -290,7 +291,7 @@ class BookingListView(AdminList):
             qs = qs.filter(city__slug=p["city"])
         if p.get("q"):
             q = p["q"].strip()
-            qs = qs.filter(Q(code__iexact=q) | Q(captain__code__iexact=q) | Q(traveler__phone_number__contains=q)
+            qs = qs.filter(Q(code__iexact=q) | Q(captain__code__iexact=normalize_captain_code(q) or q) | Q(traveler__phone_number__contains=q)
                            | Q(traveler__full_name__icontains=q))
         return qs.order_by("-created_at")
 

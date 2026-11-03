@@ -26,7 +26,7 @@ class CaptainProfile(models.Model):
         REJECTED = "rejected", "Needs changes"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code = models.CharField(max_length=16, unique=True, help_text="Public ID, e.g. CAP-1001.")
+    code = models.CharField(max_length=16, unique=True, help_text="Public ID, e.g. GLAC-1001.")
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="captain_profile")
     city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="captain_profiles")
     captain_type = models.CharField(

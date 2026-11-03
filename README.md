@@ -42,7 +42,7 @@ Every login code is `123456` while `OTP_DEV_FIXED_CODE=123456` and `DEBUG=True`.
 | Who | Phone | App |
 |---|---|---|
 | Admin | 9876500000 | admin-desk |
-| Captains CAP-1001…1006 | 9000000001 … 9000000006 | captain-mob |
+| Captains GLAC-1001…1006 | 9000000001 … 9000000006 | captain-mob |
 | Traveler | any other number | traveler-mob |
 
 ### 2. Mobile apps (Expo SDK 58)
@@ -119,14 +119,14 @@ Independent Captains work exactly as before.
 
 1. **Traveler app** → Discover → tap a reel → *Profile* → *Book your trip* → pick date, guests (and tier
    for packages) → *Send request*.
-2. **Captain app** (CAP-1001) → Bookings → the request → *Accept*.
+2. **Captain app** (GLAC-1001) → Bookings → the request → *Accept*.
 3. **Traveler** → booking → *Pay* → the test checkout page → *Pay*. The booking is confirmed, and a
    4-digit trip PIN and insurance policy appear.
 4. On the trip day, the **Captain** taps *Start trip with PIN* and enters the traveler's PIN. Both apps
    now share live location. The traveler can *Share trip with family* and press *SOS*.
 5. **Admin console** → Safety / SOS → the alert, with live locations and one-tap call numbers →
    Acknowledge / Resolve.
-6. **Captain** → *Complete trip*. The net amount lands in Earnings → *Withdraw*.
+6. On the last booked day the **traveler** sees an *end PIN* in their booking. **Captain** → *Complete with PIN* (or the traveler taps *End the trip myself*). The net amount lands in Earnings → *Withdraw*. Nobody but Admin can complete a trip before its end date.
 7. **Admin** → Payouts → *Mark paid* with the UTR. **Traveler** → *Rate your trip*.
 
 To test a trip "today", book today's date, or move a booking's date in `/django-admin/`.
@@ -143,13 +143,13 @@ To test a trip "today", book today's date, or move a booking's date in `/django-
 | BR-4 Time-based refunds | ≥72h 100% · ≥48h 75% · ≥24h 50% · ≥6h 25% · else 0% of fare; insurance refunded if the trip never started; Captain cancel → 100% | `bookings/pricing.py` |
 | BR-5 Pay-to-protect | Live tracking and SOS refuse unpaid bookings | `trips/services.py` `ensure_protected` |
 | BR-6 Per-booking insurance | ₹49 × guests × days charged, policy `INS-BKG-…` issued on payment | `bookings/pricing.py`, `bookings/services.py` `mark_paid` |
-| BR-7 ID lookup | Admin search box takes CAP-, BKG-, PO-, SOS-, TKT- or a phone number | `adminops/views.py` `LookupView` |
+| BR-7 ID lookup | Admin search box takes GLAC- (also glac1001 or the old CAP-), AGY-, BKG-, PO-, SOS-, TKT- or a phone number | `adminops/views.py` `LookupView` |
 | BR-8 Package logistics | Tier inclusions are frozen on the booking; Captain sees "You arrange…" | `ServiceOffer.tier_inclusions`, `Booking.service_snapshot` |
 | BR-9 Reels → book | Feed → profile → *Book your trip*; views, profile opens and booking starts are tracked per post | `social/views.py`, traveler `reels.tsx` |
 | Revenue R1 / R2 | 18% commission on fare; insurance margin = fee − premium (both shown on the Admin dashboard) | settings `PLATFORM_COMMISSION_PERCENT`, `INSURANCE_*` |
 
 Booking lifecycle:
-`requested → accepted (2h to pay) → confirmed (PIN) → in_progress → completed`. Requests expire
+`requested → accepted (2h to pay) → confirmed (start PIN) → in_progress → completed (end PIN on/after the end date)`. Requests expire
 after 24 h and unpaid accepts after the payment window; both are handled by a Celery beat job
 every 5 minutes. Every change is written to a booking timeline that all three apps show.
 
@@ -229,7 +229,7 @@ Bundle ids are `in.goloc.traveler` and `in.goloc.captain`.
 |---|---|
 | Auth | `auth/otp/request/` · `auth/otp/verify/` · `auth/token/refresh/` · `auth/logout/` · `auth/me/` · `auth/traveler-profile/` |
 | Captain self | `captain/profile/` (+`avatar/`) · `checklist/` · `submit/` · `go-live/` · `dashboard/` · `services/` · `vehicles/` · `documents/` · `availability/` (+`blocked/`) · `payout-account/` |
-| Discovery | `captains/` (filters: city, category, kind, language, q, sort) · `captains/<id or CAP-code>/` · `…/calendar/` · `captains/services/<id>/` · `captains/quote/` · `captains/match/` (Build My Trip) · `captains/saved/` |
+| Discovery | `captains/` (filters: city, category, kind, language, q, sort) · `captains/<id or GLAC-code>/` · `…/calendar/` · `captains/services/<id>/` · `captains/quote/` · `captains/match/` (Build My Trip) · `captains/saved/` |
 | Bookings | `bookings/` · `bookings/<id or BKG-code>/` · `…/accept|decline|cancel|start|complete/` · `…/cancel-preview/` |
 | Payments | `payments/bookings/<ref>/order/` · `payments/verify/` · `payments/webhooks/razorpay/` · `payments/wallet/` · `payments/payouts/` · pages `/pay/checkout/<token>/` |
 | Trips & SOS | `trips/<ref>/location/` · `trips/<ref>/live/` · `trips/<ref>/sos/` · `trips/emergency/` · `trips/shared/<token>/` · page `/t/<token>/` |

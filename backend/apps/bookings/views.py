@@ -96,7 +96,7 @@ class BookingActionView(APIView):
     """POST /bookings/<ref>/<action>/  — accept · decline · cancel · start · complete · share-contact"""
 
     permission_classes = [IsTravelerOrCaptain]
-    CAPTAIN_ONLY = {"accept", "decline", "start", "complete"}
+    CAPTAIN_ONLY = {"accept", "decline", "start"}
 
     def post(self, request, ref, action):
         role = role_of(request)
@@ -119,7 +119,8 @@ class BookingActionView(APIView):
         elif action == "start":
             booking = services.start_trip(booking, request.user, str(request.data.get("pin", "")))
         elif action == "complete":
-            booking = services.complete_trip(booking, request.user)
+            # Captain: needs the traveler's end PIN. Traveler: ending it themselves is their approval.
+            booking = services.complete_trip(booking, request.user, role, pin=str(request.data.get("pin", "")))
         elif action == "share-contact":
             require_role(request, "traveler")
             booking = services.share_contact(booking, request.user, bool(request.data.get("share", True)))
