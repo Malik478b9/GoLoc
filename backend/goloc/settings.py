@@ -187,8 +187,12 @@ SIMPLE_JWT = {
 # Provider: "console" logs the code (development only), "twilio_verify"
 # sends a real SMS through Twilio Verify.
 OTP_PROVIDER = config("OTP_PROVIDER", default="console" if DEBUG else "twilio_verify")
-if not DEBUG and OTP_PROVIDER == "console":
-    raise ImproperlyConfigured("OTP_PROVIDER=console is development-only. Use twilio_verify in production.")
+# Staging only: lets a DEBUG=False server log codes instead of sending SMS (read them with `docker compose logs api`).
+ALLOW_CONSOLE_OTP = config("ALLOW_CONSOLE_OTP", default=False, cast=_bool)
+if not DEBUG and OTP_PROVIDER == "console" and not ALLOW_CONSOLE_OTP:
+    raise ImproperlyConfigured(
+        "OTP_PROVIDER=console is development-only. Use twilio_verify in production (or ALLOW_CONSOLE_OTP=True on staging)."
+    )
 
 OTP_LENGTH = 6
 OTP_TTL_SECONDS = config("OTP_TTL_SECONDS", default=300, cast=int)              # code valid for 5 min
