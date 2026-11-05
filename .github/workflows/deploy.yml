@@ -51,11 +51,18 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
+          VPS_HOST=$(printf '%s' "$VPS_HOST" | tr -d '[:space:]')
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          # VPS_SSH_KEY may be the raw key or a one-line base64 of it (base64 -w0 ~/.ssh/actions)
+          if printf '%s' "$VPS_SSH_KEY" | grep -q "BEGIN OPENSSH"; then
+            printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          else
+            printf '%s' "$VPS_SSH_KEY" | tr -d '[:space:]' | base64 -d > ~/.ssh/id_ed25519
+          fi
           chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null || { echo "VPS_SSH_KEY is not a valid private key"; exit 1; }
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh root@"$VPS_HOST" 'set -e
+          ssh -o BatchMode=yes root@"$VPS_HOST" 'set -e
             cd /opt/goloc
             git fetch origin main
             git reset --hard origin/main
