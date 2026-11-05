@@ -15,6 +15,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.goloc.in/api/v1"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {

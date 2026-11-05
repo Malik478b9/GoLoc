@@ -2,6 +2,7 @@
 #   cp .env.production.example .env.production   (fill it in)
 #   docker compose --env-file .env.production up -d --build
 #   docker compose --env-file .env.production exec api python manage.py create_admin 98XXXXXXXX --name "Ops"
+#   HTTPS: certbot on the host issues /etc/letsencrypt/live/goloc.in (see deploy/README.md).
 # One VPS runs it comfortably; scale the api with `docker compose up -d --scale api=3`.
 services:
   db:
@@ -54,8 +55,10 @@ services:
       context: .
       dockerfile: deploy/nginx.Dockerfile
     restart: unless-stopped
-    ports: ["${HTTP_PORT:-80}:80"]
-    volumes: [media:/srv/media:ro]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - media:/srv/media:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on: [api]
 
 volumes:

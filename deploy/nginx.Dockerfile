@@ -21,3 +21,5 @@ FROM nginx:1.27-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=admin /src/dist /usr/share/nginx/html
 COPY --from=agency /src/dist /usr/share/nginx/agency
+COPY landing/ /usr/share/nginx/landing/
+RUN rm -f /usr/share/nginx/landing/wrangler.jsonc /usr/share/nginx/landing/.assetsignore
