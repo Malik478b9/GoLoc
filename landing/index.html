@@ -112,8 +112,8 @@
   .compare { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
   .cmp { display: flex; gap: 16px; align-items: flex-start; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
   .cmp .badge { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--soft-2); color: var(--teal-ink); flex: none; }
-  .cmp s { display: block; font-size: 14px; color: var(--muted); text-decoration-color: rgba(254, 121, 2, .7); text-decoration-thickness: 2px; }
-  .cmp b { display: block; font-size: 17px; color: var(--navy); margin-top: 2px; }
+  .cmp b { display: block; font-size: 17px; color: var(--navy); line-height: 1.35; }
+  .cmp .was { display: block; font-size: 14px; color: var(--muted); margin-top: 4px; }
   .mission { margin-top: 28px; display: flex; gap: 20px; align-items: center; padding: 26px 28px; border-radius: var(--radius); background: var(--navy); color: #C8D6EA; }
   .mission img { width: 54px; height: auto; flex: none; }
   .mission p { font-size: 17px; }
@@ -335,10 +335,10 @@
       <p>We replace the usual travel worries with people and tools you can trust.</p>
     </div>
     <div class="compare">
-      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-user"/></svg></span><div><s>Touts at the station</s><b>A verified local who's expecting you</b></div></div>
-      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-gem"/></svg></span><div><s>Tourist-trap packages</s><b>The places locals actually love</b></div></div>
-      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-card"/></svg></span><div><s>Haggling over prices</s><b>Clear prices, paid in the app</b></div></div>
-      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-phone"/></svg></span><div><s>Nobody to call</s><b>A Captain, live tracking and SOS</b></div></div>
+      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-user"/></svg></span><div><b>A verified local who's expecting you</b><span class="was">Instead of touts at the station</span></div></div>
+      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-gem"/></svg></span><div><b>The places locals actually love</b><span class="was">Instead of tourist-trap packages</span></div></div>
+      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-card"/></svg></span><div><b>Clear prices, paid in the app</b><span class="was">Instead of haggling over prices</span></div></div>
+      <div class="cmp r"><span class="badge"><svg class="ic"><use href="#i-phone"/></svg></span><div><b>A Captain, live tracking and SOS</b><span class="was">Instead of having nobody to call</span></div></div>
     </div>
     <div class="mission r">
       <img src="/goloc-mark.png" alt="" width="54" height="54">
