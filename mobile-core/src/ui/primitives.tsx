@@ -34,14 +34,14 @@ export const useWide = () => useWindowDimensions().width >= WIDE_BREAKPOINT;
 // ---------------------------------------------------------------- text
 type Variant = "hero" | "display" | "title" | "h2" | "body" | "bodyBold" | "caption" | "label" | "small";
 const TEXT: Record<Variant, TextStyle> = {
-  hero: { fontFamily: fonts.display, fontSize: 36, lineHeight: 42, letterSpacing: -0.9, color: palette.ink },
-  display: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, letterSpacing: -0.6, color: palette.ink },
-  title: { fontFamily: fonts.display, fontSize: 23, lineHeight: 29, letterSpacing: -0.3, color: palette.ink },
+  hero: { fontFamily: fonts.display, fontSize: 31, lineHeight: 38, letterSpacing: -0.8, color: palette.ink },
+  display: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, letterSpacing: -0.6, color: palette.ink },
+  title: { fontFamily: fonts.display, fontSize: 20, lineHeight: 26, letterSpacing: -0.4, color: palette.ink },
   h2: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 23, letterSpacing: -0.2, color: palette.ink },
   body: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: palette.ink2 },
   bodyBold: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 22, color: palette.ink },
   caption: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: palette.muted },
-  label: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, textTransform: "uppercase", color: palette.muted },
+  label: { fontFamily: fonts.bold, fontSize: 11, lineHeight: 14, letterSpacing: 1, textTransform: "uppercase", color: palette.muted },
   small: { fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 17, color: palette.ink2 },
 };
 

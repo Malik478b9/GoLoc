@@ -1,74 +1,84 @@
 /**
- * GoLoc design tokens. Both apps share the sand/paper ground; each app has
- * its own accent (Traveler: rickshaw green + marigold, Captain: ember).
+ * GoLoc design tokens, taken from the logo (same theme as goloc.in).
+ * Both apps share a light blue-grey ground and navy text; each app has its own
+ * accent (Traveler: brand blue, Captain: brand teal).
  */
 export const palette = {
-  ink: "#0F1E1C",
-  ink2: "#3A4845",
-  night: "#0A2526",
-  night2: "#123634",
-  sand: "#F7F1E6",
-  sand2: "#EDE3CF",
-  paper: "#FFFCF6",
+  ink: "#01245A",
+  ink2: "#42536E",
+  night: "#01245A",
+  night2: "#00487F",
+  sand: "#F4F7FB",
+  sand2: "#E6EDF5",
+  paper: "#FFFFFF",
   white: "#FFFFFF",
-  muted: "#857A66",
-  line: "rgba(15, 30, 28, 0.08)",
-  lineStrong: "rgba(15, 30, 28, 0.16)",
-  rickshaw: "#1E7A66",
-  rickshawSoft: "#DAF0E8",
-  marigold: "#F2A93B",
-  marigoldSoft: "#FDEDD3",
-  ember: "#D9480F",
-  emberSoft: "#FFE6D8",
-  coral: "#EF5B3F",
-  coralSoft: "#FDE3DC",
-  success: "#18845A",
-  successSoft: "#DCF3E6",
-  warning: "#B8670A",
-  warningSoft: "#FCEBCF",
-  info: "#2563C9",
-  infoSoft: "#DDE9FB",
+  muted: "#6B7A90",
+  line: "rgba(1, 36, 90, 0.08)",
+  lineStrong: "rgba(1, 36, 90, 0.16)",
+  /** Text on navy surfaces. */
+  onDark: "#E3ECF7",
+  onDarkMuted: "#A9BCD6",
+  // Traveler accent (brand blue). Name kept from the first palette.
+  rickshaw: "#0047B6",
+  rickshawSoft: "#E6EFFB",
+  // Highlights on dark, star ratings (logo sun).
+  marigold: "#FFB21A",
+  marigoldSoft: "#FFF3DC",
+  // Captain accent (brand teal).
+  ember: "#007F99",
+  emberSoft: "#E3F5F6",
+  teal: "#03C7C3",
+  mint: "#07DECC",
+  sun: "#FE7902",
+  coral: "#E5484D",
+  coralSoft: "#FDECEC",
+  success: "#0E9F6E",
+  successSoft: "#E3F6EE",
+  warning: "#C2620A",
+  warningSoft: "#FFF1E4",
+  info: "#0047B6",
+  infoSoft: "#E6EFFB",
 };
 
-/** Gradient stops, top-left → bottom-right. */
+/** Gradient stops, top-left → bottom-right. Colours come from the GoLoc logo. */
 export const gradients = {
-  traveler: ["#25957C", "#14614F"] as const,
-  captain: ["#F26B1D", "#C2360B"] as const,
-  night: ["#123E3B", "#0A2526", "#071A1B"] as const,
-  sunset: ["#F7B548", "#EF5B3F"] as const,
-  dawn: ["#FFF6E6", "#F7F1E6"] as const,
-  glassDark: ["rgba(10,37,38,0)", "rgba(10,37,38,0.55)", "rgba(7,26,27,0.92)"] as const,
+  traveler: ["#0B63E0", "#0047B6"] as const,
+  captain: ["#03B5B8", "#007F99"] as const,
+  night: ["#01306F", "#01245A", "#011A42"] as const,
+  sunset: ["#FFB21A", "#FE7902"] as const,
+  dawn: ["#F7FBFF", "#F4F7FB"] as const,
+  glassDark: ["rgba(1,36,90,0)", "rgba(1,36,90,0.55)", "rgba(1,26,66,0.92)"] as const,
 };
 
 export type Accent = { main: string; soft: string; onMain: string; gradient: readonly [string, string]; glow: string };
 
 export const accents: Record<"traveler" | "captain", Accent> = {
-  traveler: { main: palette.rickshaw, soft: palette.rickshawSoft, onMain: palette.white, gradient: gradients.traveler, glow: "rgba(30,122,102,0.35)" },
-  captain: { main: palette.ember, soft: palette.emberSoft, onMain: palette.white, gradient: gradients.captain, glow: "rgba(217,72,15,0.35)" },
+  traveler: { main: palette.rickshaw, soft: palette.rickshawSoft, onMain: palette.white, gradient: gradients.traveler, glow: "rgba(0,71,182,0.30)" },
+  captain: { main: palette.ember, soft: palette.emberSoft, onMain: palette.white, gradient: gradients.captain, glow: "rgba(0,127,153,0.30)" },
 };
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 };
-export const radius = { sm: 12, md: 16, lg: 22, xl: 28, pill: 999 };
+export const radius = { sm: 10, md: 14, lg: 18, xl: 24, pill: 999 };
 
 export const fonts = {
-  display: "Fraunces_600SemiBold",
-  body: "Manrope_400Regular",
-  medium: "Manrope_600SemiBold",
-  bold: "Manrope_700Bold",
+  display: "PlusJakartaSans_800ExtraBold",
+  body: "PlusJakartaSans_400Regular",
+  medium: "PlusJakartaSans_600SemiBold",
+  bold: "PlusJakartaSans_700Bold",
 };
 
 export const shadow = {
-  shadowColor: "#0F1E1C",
-  shadowOpacity: 0.07,
-  shadowRadius: 18,
+  shadowColor: "#01245A",
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
   shadowOffset: { width: 0, height: 8 },
   elevation: 3,
 };
 
 /** Bigger, softer lift for hero cards and floating bars. */
 export const lift = {
-  shadowColor: "#0F1E1C",
-  shadowOpacity: 0.16,
+  shadowColor: "#01245A",
+  shadowOpacity: 0.14,
   shadowRadius: 28,
   shadowOffset: { width: 0, height: 14 },
   elevation: 10,

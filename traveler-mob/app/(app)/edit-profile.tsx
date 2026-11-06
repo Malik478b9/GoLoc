@@ -1,4 +1,4 @@
-import { api, ApiError, Button, Field, Loading, Screen, space, T, toast, useAuth } from "@goloc/core";
+import { api, ApiError, Button, Field, Loading, palette, Screen, space, T, toast, useAuth } from "@goloc/core";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -41,7 +41,7 @@ export default function EditProfile() {
       <T variant="caption" style={{ marginBottom: space.md }}>Our safety team calls this person if you raise an SOS and we can't reach you.</T>
       <Field label="Name" value={ecName} onChangeText={setEcName} placeholder="e.g. Ravi (brother)" />
       <Field label="Phone" prefix="+91" value={ecPhone} onChangeText={setEcPhone} keyboardType="phone-pad" error={err?.field("emergency_contact_phone")} />
-      {err && !err.fields ? <T color="#E15B3F">{err.message}</T> : null}
+      {err && !err.fields ? <T color={palette.coral}>{err.message}</T> : null}
     </Screen>
   );
 }

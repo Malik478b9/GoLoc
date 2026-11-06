@@ -48,14 +48,14 @@ export default function Earnings() {
       <Card style={{ backgroundColor: palette.night }}>
         <T variant="label" color={palette.marigold}>Available to withdraw</T>
         <T style={{ fontSize: 36, fontWeight: "800", color: palette.white, marginVertical: 6 }}>{money(w.available)}</T>
-        <T variant="small" color="#D6E6E1">{w.payout_account ? `To ${w.payout_account}` : "Add a payout account to withdraw"}</T>
+        <T variant="small" color={palette.onDark}>{w.payout_account ? `To ${w.payout_account}` : "Add a payout account to withdraw"}</T>
         <Button
           title={w.payout_account ? "Withdraw" : "Add payout account"}
           onPress={() => (w.payout_account ? setOpen(true) : router.push("/setup/payout"))}
           disabled={!!w.payout_account && !canWithdraw}
           style={{ marginTop: space.md }}
         />
-        {w.payout_account && w.available < w.min_payout ? <T variant="caption" color="#D6E6E1" style={{ marginTop: 6 }}>Minimum payout is {money(w.min_payout)}.</T> : null}
+        {w.payout_account && w.available < w.min_payout ? <T variant="caption" color={palette.onDark} style={{ marginTop: 6 }}>Minimum payout is {money(w.min_payout)}.</T> : null}
       </Card>
       {w.on_hold ? <View style={{ marginTop: space.md }}><Banner tone="danger" title="Payouts paused" body="Your account is on hold. Contact support." /></View> : null}
 

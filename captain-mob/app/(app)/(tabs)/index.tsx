@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  api, Appear, Avatar, Banner, Booking, Button, Card, dateRange, Empty, ErrorView, Float, fonts, gradients, LinearGradient, Loading, money, motion, Orbs,
+  api, Appear, Avatar, Banner, Booking, Button, Card, dateRange, Empty, ErrorView, Float, fonts, gradients, LinearGradient, Loading, money, motion,
   palette, Pressy, Pulse, radius, Rating, Row, Section, shadow, space, StatusBadge, T, time12, timeLeft, toast, toastError, useUnreadCount,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
@@ -48,14 +48,14 @@ function LiveToggle({ live, disabled, busy, onChange }: { live: boolean; disable
   useEffect(() => {
     p.value = withSpring(live ? 1 : 0, motion.spring);
   }, [live, p]);
-  const track = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(p.value, [0, 1], ["rgba(255,255,255,0.14)", "#2BB394"]) }));
+  const track = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(p.value, [0, 1], ["rgba(255,255,255,0.14)", palette.mint]) }));
   const knob = useAnimatedStyle(() => ({ transform: [{ translateX: p.value * 30 }] }));
   return (
     <Pressy disabled={disabled || busy} haptic scaleTo={0.92} onPress={() => onChange(!live)} accessibilityRole="switch" accessibilityState={{ checked: live, disabled }}
       style={{ opacity: disabled ? 0.5 : 1 }}>
       <Animated.View style={[styles.track, track]}>
         <Animated.View style={[styles.knob, knob]}>
-          <Ionicons name={live ? "flash" : "moon"} size={14} color={live ? "#1E9B7E" : palette.muted} />
+          <Ionicons name={live ? "flash" : "moon"} size={14} color={live ? palette.success : palette.muted} />
         </Animated.View>
       </Animated.View>
     </Pressy>
@@ -86,7 +86,6 @@ export default function Business() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.night }}>
         <LinearGradient colors={gradients.night as any} style={StyleSheet.absoluteFill} />
-        <Orbs colors={[palette.ember, palette.marigold, "#2BB394"]} />
         <SafeAreaView style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ padding: space.xl, paddingTop: space.xxl }}>
             <Appear>
@@ -139,7 +138,6 @@ export default function Business() {
       >
         {/* ---------- hero ---------- */}
         <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: insets.top + space.sm }]}>
-          <Orbs colors={[palette.ember, palette.marigold, "#2BB394"]} />
           <Row style={{ justifyContent: "space-between" }}>
             <Row gap={12} style={{ flex: 1 }}>
               <Avatar uri={p.avatar} name={p.full_name} size={50} verified={approved} ring />
@@ -181,7 +179,7 @@ export default function Business() {
               {([
                 ["wallet", "Wallet", money(d.wallet.available), "Ready to withdraw", gradients.traveler, () => router.push("/earnings")],
                 ["star", "Rating", Number(p.rating_avg) > 0 ? Number(p.rating_avg).toFixed(1) : "New", `${p.trips_completed} trips done`, gradients.sunset, () => router.push("/reviews")],
-                ["eye", "Profile views", String(p.profile_views), `${d.reel_views} reel views`, ["#4C8DF6", "#2457C2"] as const, () => router.push("/content")],
+                ["eye", "Profile views", String(p.profile_views), `${d.reel_views} reel views`, ["#0B63E0", "#0047B6"] as const, () => router.push("/content")],
                 ["calendar", "Upcoming", String(d.upcoming_count), d.pending_count ? `${d.pending_count} waiting for you` : "All caught up", gradients.captain, () => router.push("/bookings")],
               ] as const).map(([icon, label, value, hint, colors, go], i) => (
                 <Appear key={label} i={3 + i} style={styles.statCell}>
@@ -291,7 +289,7 @@ const styles = StyleSheet.create({
   bigMoney: { fontFamily: fonts.display, fontSize: 44, lineHeight: 52, letterSpacing: -1.2, color: palette.white, marginTop: 2 },
   liveCard: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.lg, padding: space.md, paddingLeft: space.lg, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   liveCardOn: { backgroundColor: "rgba(43,179,148,0.16)", borderColor: "rgba(43,179,148,0.4)" },
-  liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#2BB394" },
+  liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.mint },
   track: { width: 64, height: 34, borderRadius: 17, padding: 2, justifyContent: "center" },
   knob: { width: 30, height: 30, borderRadius: 15, backgroundColor: palette.white, alignItems: "center", justifyContent: "center", ...shadow, shadowOpacity: 0.2 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 12, marginTop: space.lg },

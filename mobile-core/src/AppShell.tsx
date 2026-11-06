@@ -1,5 +1,4 @@
-import { Fraunces_600SemiBold } from "@expo-google-fonts/fraunces";
-import { Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold } from "@expo-google-fonts/manrope";
+import { PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
@@ -29,7 +28,7 @@ export function useSession() {
  * stored session are ready, so the first frame is already the right screen.
  */
 export function AppShell({ role, children }: { role: Role; children: React.ReactNode }) {
-  const [fontsLoaded] = useFonts({ Fraunces_600SemiBold, Manrope_400Regular, Manrope_600SemiBold, Manrope_700Bold });
+  const [fontsLoaded] = useFonts({ PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold });
   const { signedIn, loading } = useSession();
 
   useEffect(() => {

@@ -91,20 +91,6 @@ export function Pulse({ children, style, min = 0.45 }: { children?: React.ReactN
   return <Animated.View style={[style, a]}>{children}</Animated.View>;
 }
 
-/** Blurred-looking colour blobs that drift behind dark heroes. */
-export function Orbs({ colors = [palette.marigold, "#2BB394", palette.coral] }: { colors?: string[] }) {
-  const spots: [number, number, number][] = [[-60, -40, 220], [180, 60, 180], [40, 220, 160]];
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {spots.map(([x, y, size], i) => (
-        <Float key={i} distance={14} duration={4200 + i * 900} delay={i * 400} style={{ position: "absolute", left: x, top: y }}>
-          <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors[i % colors.length], opacity: 0.22 }} />
-        </Float>
-      ))}
-    </View>
-  );
-}
-
 /** Rounded gradient surface. `kind="accent"` follows the app's accent. */
 export function GradientCard({ kind = "accent", style, children, colors }: { kind?: "accent" | "night" | "sunset"; style?: StyleProp<ViewStyle>; children?: React.ReactNode; colors?: readonly [string, string, ...string[]] }) {
   const accent = useAccent();

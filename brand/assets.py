@@ -49,7 +49,7 @@ for d in ["admin-desk/public/","agency-desk/public/","landing/"]:  # favicons
     save(fit(mark,64,0.04),d+"favicon.png")
     save(fit(mark,180,0.14,WHITE).convert("RGB"),d+"apple-touch-icon.png")
 for d in ["admin-desk/src/assets/","agency-desk/src/assets/"]:
-    save(dark,d+"goloc-logo-dark.png",700); save(fit(mark,128,0.0),d+"goloc-mark.png")
+    save(dark,d+"goloc-logo-dark.png",700); save(light,d+"goloc-logo.png",700); save(fit(mark,128,0.0),d+"goloc-mark.png")
 save(navD,"landing/goloc-nav-dark.png",600)
 save(navL,"landing/goloc-nav.png",600)
 save(fit(mark,560,0.0),"landing/goloc-mark.png")

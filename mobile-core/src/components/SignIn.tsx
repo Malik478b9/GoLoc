@@ -7,7 +7,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth";
 import { fonts, gradients, palette, radius, space } from "../theme";
 import { Field, Segmented } from "../ui/inputs";
-import { Appear, Float, LinearGradient, Orbs } from "../ui/motion";
+import { Appear, Float, LinearGradient } from "../ui/motion";
 import { BrandLockup } from "../ui/brand";
 import { keyboardBehavior } from "../ui/keyboard";
 import { Button, T, useAccent, useWide } from "../ui/primitives";
@@ -111,7 +111,6 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
   return (
     <View style={{ flex: 1, backgroundColor: palette.night }}>
       <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <Orbs colors={[palette.marigold, accent.main, palette.coral]} />
     <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboardBehavior}>
       <ScrollView
@@ -128,15 +127,15 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
               <BrandLockup height={52} />
             </Float>
           </Appear>
-          <Appear i={1}><T variant="label" color={palette.marigold} style={{ marginTop: space.xl }}>{appName}</T></Appear>
+          <Appear i={1}><T variant="label" color={palette.mint} style={{ marginTop: space.xl }}>{appName}</T></Appear>
           <Appear i={2}><T style={styles.tagline}>{tagline}</T></Appear>
-          <Appear i={3}><T variant="body" color="#C9D6D2" style={{ marginTop: space.sm }}>{supporting}</T></Appear>
+          <Appear i={3}><T variant="body" color={palette.onDarkMuted} style={{ marginTop: space.sm }}>{supporting}</T></Appear>
           <View style={{ marginTop: space.lg, gap: 10 }}>
             {bullets.map((b, i) => (
               <Appear key={b} i={4 + i}>
                 <View style={styles.bullet}>
                   <View style={styles.bulletIcon}><Ionicons name="checkmark" size={12} color={palette.night} /></View>
-                  <T variant="small" color="#E6EEEB" style={{ flex: 1 }}>{b}</T>
+                  <T variant="small" color={palette.onDark} style={{ flex: 1 }}>{b}</T>
                 </View>
               </Appear>
             ))}
@@ -210,7 +209,7 @@ const styles = StyleSheet.create({
   hero: { flex: 1, paddingHorizontal: space.xl, justifyContent: "flex-end", paddingBottom: space.xl },
   tagline: { fontFamily: fonts.display, fontSize: 38, lineHeight: 44, color: palette.white, marginTop: space.sm, letterSpacing: -1 },
   bullet: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 14, paddingVertical: 9, paddingHorizontal: 12 },
-  bulletIcon: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.marigold, alignItems: "center", justifyContent: "center" },
+  bulletIcon: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.mint, alignItems: "center", justifyContent: "center" },
   panel: { backgroundColor: palette.paper, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: space.xl, paddingBottom: space.xxl, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: -6 }, elevation: 16 },
   code: { fontFamily: fonts.bold, fontSize: 32, letterSpacing: 16, textAlign: "center", backgroundColor: palette.white, borderRadius: radius.lg, borderWidth: 1.5, borderColor: palette.lineStrong, paddingVertical: 16, color: palette.ink },
 });

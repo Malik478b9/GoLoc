@@ -75,7 +75,7 @@ export default function NewPost() {
           <View style={{ alignItems: "center", gap: 8 }}>
             <Ionicons name="cloud-upload-outline" size={44} color={palette.white} />
             <T variant="bodyBold" color={palette.white}>Choose a video or photo</T>
-            <T variant="caption" color="#D6E6E1">Vertical 9:16 looks best · up to 90 s</T>
+            <T variant="caption" color={palette.onDark}>Vertical 9:16 looks best · up to 90 s</T>
           </View>
         )}
       </Pressable>

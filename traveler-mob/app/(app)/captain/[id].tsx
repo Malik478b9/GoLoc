@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  api, Appear, Avatar, Badge, Button, CaptainAvailability, Card, Empty, ErrorView, gradients, Header, lift, LinearGradient, Loading, money, openChat, Orbs, Paginated, palette, Post, PosterCard,
+  api, Appear, Avatar, Badge, Button, CaptainAvailability, Card, Empty, ErrorView, gradients, Header, lift, LinearGradient, Loading, money, openChat, Paginated, palette, Post, PosterCard,
   Pressy, radius, Rating, Review, Row, Segmented, Service, shadow, SkeletonList, longDate, space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
 } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -136,8 +136,7 @@ export default function CaptainProfile() {
       <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
         <Animated.View style={[styles.hero, heroStyle]}>
           {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={300} /> : null}
-          <LinearGradient colors={cover ? ["rgba(7,26,27,0.35)", "rgba(7,26,27,0.15)", "rgba(7,26,27,0.85)"] : (gradients.night as any)} style={StyleSheet.absoluteFill} />
-          {cover ? null : <Orbs />}
+          <LinearGradient colors={cover ? ["rgba(1,26,66,0.35)", "rgba(1,26,66,0.15)", "rgba(1,26,66,0.85)"] : (gradients.night as any)} style={StyleSheet.absoluteFill} />
         </Animated.View>
 
         <View style={{ paddingHorizontal: space.lg }}>

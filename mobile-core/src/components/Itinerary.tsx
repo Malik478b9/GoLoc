@@ -29,13 +29,13 @@ export function PosterCard({ poster, it, compact }: { poster: Partial<ItineraryP
         {poster.duration_label || `${it.days} days`} · {poster.tier_label || it.tier_label}
       </T>
       <T style={[styles.posterHead, compact && { fontSize: 22, lineHeight: 28 }]} numberOfLines={compact ? 2 : undefined}>{poster.headline || it.title}</T>
-      <T variant="caption" color="#C9D6D2" numberOfLines={compact ? 1 : undefined}>{poster.tagline || it.destination}</T>
+      <T variant="caption" color={palette.onDarkMuted} numberOfLines={compact ? 1 : undefined}>{poster.tagline || it.destination}</T>
       {highlights.length ? (
         <View style={{ marginTop: space.md, gap: 6 }}>
           {highlights.map((h) => (
             <Row key={h} gap={8}>
               <Ionicons name="checkmark-circle" size={15} color={palette.marigold} />
-              <T variant="small" color="#E6EEEB" style={{ flex: 1 }}>{h}</T>
+              <T variant="small" color={palette.onDark} style={{ flex: 1 }}>{h}</T>
             </Row>
           ))}
         </View>
@@ -132,8 +132,8 @@ export function ItineraryDocument({ it, content }: { it: Pick<ItinerarySummary, 
       <View style={styles.hero}>
         <T variant="label" color={palette.marigold}>{it.tier_label} · {it.days} day{it.days > 1 ? "s" : ""} · {it.guests} traveler{it.guests > 1 ? "s" : ""}</T>
         <T style={styles.posterHead}>{content.title || it.title}</T>
-        <T variant="caption" color="#C9D6D2">{it.destination}{it.start_date && it.end_date ? ` · ${dateRange(it.start_date, it.end_date)}` : ""}</T>
-        {hasText(content.summary) ? <T color="#E6EEEB" style={{ marginTop: space.sm }}>{content.summary}</T> : null}
+        <T variant="caption" color={palette.onDarkMuted}>{it.destination}{it.start_date && it.end_date ? ` · ${dateRange(it.start_date, it.end_date)}` : ""}</T>
+        {hasText(content.summary) ? <T color={palette.onDark} style={{ marginTop: space.sm }}>{content.summary}</T> : null}
         {(content.highlights ?? []).length ? (
           <Row gap={6} style={{ flexWrap: "wrap", marginTop: space.md }}>
             {content.highlights!.filter(hasText).slice(0, 8).map((h) => <Badge key={h} label={h} bg="#ffffff1f" fg="#fff" />)}

@@ -96,7 +96,7 @@ export default function BookingScreen() {
           <Card style={{ backgroundColor: palette.night }}>
             <T variant="label" color={palette.marigold}>Your trip PIN</T>
             <T style={styles.pin}>{b.start_pin}</T>
-            <T variant="small" color="#D6E6E1">Share this with your Captain when you meet — it starts the trip. Never share it before you meet.</T>
+            <T variant="small" color={palette.onDark}>Share this with your Captain when you meet — it starts the trip. Never share it before you meet.</T>
             <Divider style={{ backgroundColor: "#ffffff22", marginVertical: space.md }} />
             <Row gap={8}><Ionicons name="shield-checkmark" size={16} color={palette.marigold} /><T variant="small" color={palette.white}>Insured · {b.insurance_policy_no}</T></Row>
           </Card>
@@ -107,11 +107,11 @@ export default function BookingScreen() {
             {b.end_pin ? (
               <>
                 <T style={styles.pin}>{b.end_pin}</T>
-                <T variant="small" color="#D6E6E1">Give this to your Captain only when the trip is really over: every stop done and you've been dropped off. It completes the trip and releases their payment.</T>
+                <T variant="small" color={palette.onDark}>Give this to your Captain only when the trip is really over: every stop done and you've been dropped off. It completes the trip and releases their payment.</T>
                 {a.complete ? <Button title="Or end the trip myself" icon="flag" kind="secondary" small onPress={() => setEndOpen(true)} style={{ marginTop: space.md, alignSelf: "flex-start" }} /> : null}
               </>
             ) : (
-              <T variant="small" color="#D6E6E1" style={{ marginTop: 6 }}>
+              <T variant="small" color={palette.onDark} style={{ marginTop: 6 }}>
                 Your trip runs until {dateRange(b.can_complete_from, b.can_complete_from)}. Your end PIN appears here on that day. Your Captain can't finish the trip without it.
               </T>
             )}

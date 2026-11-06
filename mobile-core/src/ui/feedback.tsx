@@ -123,7 +123,7 @@ export function Banner({ tone = "info", icon, title, body, children }: { tone?: 
 
 const styles = StyleSheet.create({
   toast: { position: "absolute", left: space.lg, right: space.lg, zIndex: 1000, backgroundColor: palette.night, borderRadius: radius.lg, paddingVertical: 14, paddingHorizontal: space.lg, flexDirection: "row", alignItems: "center", gap: space.sm, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", ...lift },
-  backdrop: { flex: 1, backgroundColor: "rgba(7,26,27,0.55)" },
+  backdrop: { flex: 1, backgroundColor: "rgba(1,26,66,0.55)" },
   sheet: { backgroundColor: palette.paper, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingHorizontal: space.xl, paddingTop: space.md, maxHeight: "88%" },
   dialogWrap: { alignItems: "center", justifyContent: "center", padding: space.xl },
   dialog: { width: "100%", maxWidth: 520, borderRadius: 24, paddingTop: space.xl, paddingBottom: space.xl, maxHeight: "90%" },

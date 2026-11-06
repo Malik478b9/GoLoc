@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Appear, Button, Empty, Float, fonts, gradients, LinearGradient, Orbs, palette, Pressy, radius, Row, Section, Sheet, Skeleton, space, T, toastError,
+  Appear, Button, Empty, Float, fonts, gradients, LinearGradient, palette, Pressy, radius, Row, Section, Sheet, Skeleton, space, T, toastError,
   useAuth, useUnreadCount,
 } from "@goloc/core";
 import { router } from "expo-router";
@@ -17,8 +17,8 @@ const CATEGORIES = ["food", "heritage", "culture", "adventure", "photography", "
 const QUICK: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; colors: readonly [string, string]; go: () => void }[] = [
   { icon: "sparkles", title: "Build my trip", sub: "Dates in, match out", colors: gradients.sunset, go: () => router.push("/build-trip") },
   { icon: "people", title: "Find a Captain", sub: "Search & filter", colors: gradients.traveler, go: () => router.push("/explore") },
-  { icon: "play", title: "Reels", sub: "See it first", colors: ["#7C4DDB", "#4B2A9E"], go: () => router.push({ pathname: "/reels", params: { start: "0" } }) },
-  { icon: "heart", title: "Saved", sub: "Your wishlist", colors: ["#F0628A", "#C2365F"], go: () => router.push("/saved") },
+  { icon: "play", title: "Reels", sub: "See it first", colors: ["#0B63E0", "#0047B6"], go: () => router.push({ pathname: "/reels", params: { start: "0" } }) },
+  { icon: "heart", title: "Saved", sub: "Your wishlist", colors: ["#FFB21A", "#FE7902"], go: () => router.push("/saved") },
 ];
 
 export default function Discover() {
@@ -59,7 +59,6 @@ export default function Discover() {
         {/* ---------- hero ---------- */}
         <View style={styles.heroWrap}>
           <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: insets.top + space.sm }]}>
-            <Orbs />
             <View style={styles.top}>
               <Pressy onPress={() => setCityOpen(true)} style={styles.cityBtn} haptic>
                 <View style={styles.cityDot}><Ionicons name="location" size={13} color={palette.night} /></View>
@@ -269,12 +268,12 @@ const styles = StyleSheet.create({
   searchWrap: { position: "absolute", left: space.lg, right: space.lg, bottom: -30 },
   search: {
     flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: palette.white, borderRadius: 22, padding: 10, paddingRight: 10,
-    shadowColor: "#0F1E1C", shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 10,
+    shadowColor: palette.ink, shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 10,
   },
   searchIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: palette.rickshaw, alignItems: "center", justifyContent: "center" },
   filterIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: palette.sand, alignItems: "center", justifyContent: "center" },
   quick: { paddingHorizontal: space.lg, gap: 12, paddingTop: space.sm, paddingBottom: 4 },
-  quickTile: { width: 138, backgroundColor: palette.paper, borderRadius: 22, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.line, shadowColor: "#0F1E1C", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  quickTile: { width: 138, backgroundColor: palette.paper, borderRadius: 22, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.line, shadowColor: palette.ink, shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   quickIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   buildCard: { flexDirection: "row", alignItems: "center", gap: space.md, borderRadius: 28, padding: space.xl, overflow: "hidden" },
   buildRing: { position: "absolute", right: 40, top: -50, width: 150, height: 150, borderRadius: 75, borderWidth: 18, borderColor: "rgba(255,255,255,0.12)" },

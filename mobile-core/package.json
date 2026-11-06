@@ -22,8 +22,7 @@
     "react-native-webview": "*",
     "react-native-safe-area-context": "*",
     "@expo/vector-icons": "*",
-    "@expo-google-fonts/fraunces": "*",
-    "@expo-google-fonts/manrope": "*"
+    "@expo-google-fonts/plus-jakarta-sans": "*"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.66.0",
@@ -82,10 +81,7 @@
     "@expo/vector-icons": {
       "optional": true
     },
-    "@expo-google-fonts/fraunces": {
-      "optional": true
-    },
-    "@expo-google-fonts/manrope": {
+    "@expo-google-fonts/plus-jakarta-sans": {
       "optional": true
     }
   }

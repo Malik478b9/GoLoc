@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   seg: { flexDirection: "row", backgroundColor: palette.sand2, borderRadius: radius.md, padding: 4 },
   segItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 12 },
-  segActive: { backgroundColor: palette.white, shadowColor: "#0F1E1C", shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  segActive: { backgroundColor: palette.white, shadowColor: palette.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   segText: { fontFamily: fonts.bold, fontSize: 13, color: palette.muted },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   weekHead: { width: `${100 / 7}%`, textAlign: "center", fontFamily: fonts.bold, fontSize: 12, color: palette.muted, paddingVertical: 6 },
