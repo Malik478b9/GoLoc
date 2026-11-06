@@ -5,11 +5,9 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
-    # Mobile apps ship through EAS, and the frozen web desks aren't deployed; skip those changes.
+    # The frozen web desks aren't deployed; skip changes that only touch them.
+    # (traveler-mob / captain-mob / mobile-core DO deploy: their web versions run on app./captain.goloc.in.)
     paths-ignore:
-      - "traveler-mob/**"
-      - "captain-mob/**"
-      - "mobile-core/**"
       - "traveler-desk/**"
       - "captain-desk/**"
       - "**.md"
@@ -44,7 +42,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Deploy over SSH
         env:
