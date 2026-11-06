@@ -92,9 +92,10 @@ def render_document(it) -> str:
     extra = "".join(f"<div class='card'><h3>{t}</h3>{body}</div>" for t, body in sections if body)
     dates = f"{it.start_date:%d %b %Y} → {it.end_date:%d %b %Y}" if it.start_date and it.end_date else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="https://goloc.in/favicon.png">
 <title>{_e(c.get('title') or it.title)} · GoLoc itinerary</title><style>{STYLE}</style></head><body><div class="wrap">
 <div class="noprint" style="margin-bottom:12px"><button class="btn" onclick="window.print()">Print / Save as PDF</button><a class="btn" style="background:var(--gold)" href="poster/">Poster</a></div>
-<div class="hero"><div class="label">{_e(it.code)} · {_e(it.get_tier_display())} · {_e(p.get('duration_label') or f'{it.days} days')}</div>
+<div class="hero"><img src="https://goloc.in/goloc-nav-dark.png" alt="GoLoc" height="30" style="display:block;height:30px;width:auto;margin:0 0 12px"><div class="label">{_e(it.code)} · {_e(it.get_tier_display())} · {_e(p.get('duration_label') or f'{it.days} days')}</div>
 <h1>{_e(c.get('title') or it.title)}</h1><div class="muted">{_e(it.destination)}{' · ' + _e(dates) if dates else ''} · {it.guests} traveler{'s' if it.guests > 1 else ''}</div>
 {'<p>' + _e(c.get('summary')) + '</p>' if c.get('summary') else ''}
 <div class="chips">{''.join(f"<span class='chip'>{_e(h)}</span>" for h in (c.get('highlights') or [])[:8])}</div>
@@ -111,13 +112,14 @@ def render_poster(it) -> str:
     p = it.poster or {}
     highlights = "".join(f"<li>{_e(h)}</li>" for h in (p.get("highlights") or [])[:5])
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="https://goloc.in/favicon.png">
 <title>{_e(p.get('headline') or it.title)} · GoLoc</title><style>{STYLE}
 .poster{{max-width:520px;margin:24px auto;background:var(--night);color:#fff;border-radius:28px;padding:32px;position:relative;overflow:hidden}}
 .poster:before{{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:var(--gold);opacity:.18}}
 .poster h1{{font-size:36px;margin:12px 0 6px}}.poster ul{{list-style:none;padding:0;margin:18px 0}}.poster li{{padding:8px 0;border-top:1px solid #ffffff22}}
 .poster li:before{{content:"✓ ";color:var(--gold);font-weight:700}}.price{{font-size:22px;font-weight:800;color:var(--gold)}}
 .cta{{display:inline-block;margin-top:16px;background:var(--gold);color:var(--night);padding:10px 18px;border-radius:12px;font-weight:800}}
-</style></head><body><div class="wrap"><div class="poster">
+</style></head><body><div class="wrap"><div class="poster"><img src="https://goloc.in/goloc-nav-dark.png" alt="GoLoc" height="28" style="display:block;height:28px;width:auto;position:relative">
 <div class="label">{_e(p.get('duration_label') or f'{it.days} days')} · {_e(p.get('tier_label') or it.get_tier_display())}</div>
 <h1>{_e(p.get('headline') or it.title)}</h1><div style="color:#C9D6D2">{_e(p.get('tagline') or it.destination)}</div>
 <ul>{highlights}</ul>

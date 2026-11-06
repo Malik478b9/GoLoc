@@ -10,6 +10,7 @@ export * from "./query";
 export * from "./share";
 export * from "./storage";
 export * from "./theme";
+export * from "./ui/brand";
 export * from "./ui/feedback";
 export * from "./ui/inputs";
 export * from "./ui/layout";

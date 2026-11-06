@@ -117,6 +117,7 @@ class RazorpayWebhookView(APIView):
 
 # ---------------------------------------------------------------- HTML pages (opened in the app's WebView)
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="https://goloc.in/favicon.png">
 <title>GoLoc · Secure payment</title><style>
 body{{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:#F6EFE1;color:#12211F}}
 .wrap{{max-width:420px;margin:0 auto;padding:28px 20px}}.card{{background:#FBF8F1;border-radius:18px;padding:20px;
@@ -125,7 +126,7 @@ box-shadow:0 6px 24px rgba(18,33,31,.08)}}h1{{font-size:20px;margin:0 0 4px}}.mu
 .total{{font-weight:700;font-size:18px;border:0}}button{{width:100%;border:0;border-radius:14px;padding:16px;font-size:16px;
 font-weight:700;margin-top:14px;cursor:pointer}}.pay{{background:#2F7A6B;color:#fff}}.ghost{{background:transparent;color:#E15B3F}}
 .badge{{display:inline-block;background:#E8A33D;color:#12211F;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700}}
-</style></head><body><div class="wrap"><div class="card">{body}</div>
+</style></head><body><div class="wrap"><img src="https://goloc.in/goloc-nav.png" alt="GoLoc" height="30" style="display:block;height:30px;width:auto;margin:0 auto 16px"><div class="card">{body}</div>
 <p class="muted" style="text-align:center;margin-top:16px">🔒 Payments are protected. Insurance &amp; SOS activate once paid.</p></div>
 <script>const TOKEN={token};const RESULT={result};
 async function verify(extra){{const r=await fetch({verify},{{method:'POST',headers:{{'Content-Type':'application/json'}},

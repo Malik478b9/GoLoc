@@ -11,6 +11,7 @@ import { Setup } from "./Setup";
 import { Trips } from "./Trips";
 import type { Agency } from "./types";
 import "./console.css";
+import markImg from "../assets/goloc-mark.png";
 
 const NAV: { path: string; label: string; icon: string; mobile?: boolean }[] = [
   { path: "home", label: "Home", icon: "⌂", mobile: true },
@@ -61,7 +62,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
     <AgencyCtx.Provider value={{ agency, reload: profile.reload }}>
       <div className="console">
         <aside className="sidebar">
-          <div className="side-brand"><span className="mark">G</span><div><b>{agency?.name || "GoLoc"}</b><small>{agency ? `${agency.code} · Agency` : "Agency console"}</small></div></div>
+          <div className="side-brand"><img className="mark" src={markImg} alt="" /><div><b>{agency?.name || "GoLoc"}</b><small>{agency ? `${agency.code} · Agency` : "Agency console"}</small></div></div>
           <nav>{navItems()}</nav>
           <div className="side-user">
             <div><b>{user.full_name || "Owner"}</b><small>{user.phone_number}</small></div>

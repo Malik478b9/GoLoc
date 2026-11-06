@@ -12,6 +12,7 @@ import { fonts, palette, radius, space } from "../theme";
 import { toastError } from "../ui/feedback";
 import { Empty, ErrorView, Header, SkeletonList } from "../ui/layout";
 import { Avatar, Row, T, useAccent } from "../ui/primitives";
+import { keyboardBehavior } from "../ui/keyboard";
 
 export function ConversationList({ emptyBody }: { emptyBody: string }) {
   const q = useQuery({ queryKey: ["conversations"], queryFn: () => api.get<Paginated<Conversation>>("/chat/"), refetchInterval: 20000 });
@@ -130,7 +131,7 @@ export function ChatThread({ id }: { id: string }) {
       {error ? (
         <ErrorView error={error} onRetry={load} />
       ) : (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboardBehavior}>
           <FlatList
             inverted
             data={reversed}

@@ -12,6 +12,7 @@ import { Audit, Cities, Users } from "./Platform";
 import { SOSDetail, SOSList } from "./Safety";
 import { Tickets } from "./Tickets";
 import "./console.css";
+import markImg from "../assets/goloc-mark.png";
 
 const NAV: { path: string; label: string; icon: string; mobile?: boolean; badge?: "sos_open" | "captains_pending" | "agencies_pending" | "tickets_open" | "payouts" }[] = [
   { path: "dashboard", label: "Command Center", icon: "⌂", mobile: true },
@@ -91,7 +92,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
   return (
     <div className="console">
       <aside className="sidebar">
-        <div className="side-brand"><span className="mark">G</span><div><b>GoLoc</b><small>Command Center</small></div></div>
+        <div className="side-brand"><img className="mark" src={markImg} alt="" /><div><b>GoLoc</b><small>Command Center</small></div></div>
         <nav>{navItems()}</nav>
         <div className="side-user">
           <div><b>{user.full_name || "Admin"}</b><small>{user.phone_number}</small></div>

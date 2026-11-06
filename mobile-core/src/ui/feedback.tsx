@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef } from "react";
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Animated, KeyboardAvoidingView, Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { create } from "zustand";
 
 import { lift, palette, radius, space } from "../theme";
 import { Button, T, useWide } from "./primitives";
+import { keyboardBehavior } from "./keyboard";
 
 // ---------------------------------------------------------------- toast
 type ToastState = { message: string | null; tone: "info" | "success" | "error"; show: (m: string, tone?: "info" | "success" | "error") => void };
@@ -54,7 +55,7 @@ export function Sheet({ visible, onClose, title, children }: { visible: boolean;
   return (
     <Modal visible={visible} transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose} statusBarTranslucent>
       {/* iOS doesn't resize for the keyboard inside a Modal, so lift the sheet ourselves. */}
-      <KeyboardAvoidingView style={[{ flex: 1 }, wide && styles.dialogWrap]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={[{ flex: 1 }, wide && styles.dialogWrap]} behavior={keyboardBehavior}>
         <Pressable style={wide ? StyleSheet.absoluteFill : styles.backdrop} onPress={onClose}>
           {wide ? <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(18,33,31,0.45)" }]} /> : null}
         </Pressable>

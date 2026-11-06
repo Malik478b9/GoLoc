@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { apiError, requestOTP, verifyOTP, type User } from "../api/client";
+import logoDark from "../assets/goloc-logo-dark.png";
 
 interface Props {
   onSignedIn: (user: User) => void;
@@ -92,7 +93,7 @@ export default function AuthPage({ onSignedIn }: Props) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <div className="brand">GoLoc</div>
+        <img className="brand-logo" src={logoDark} alt="GoLoc · Travel easier, safer!" />
         <div className="tagline">{TAGLINE}</div>
 
         {step === "phone" ? (

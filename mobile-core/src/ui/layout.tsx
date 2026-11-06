@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, ScrollViewProps, StyleSheet, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Pressable, RefreshControl, ScrollView, ScrollViewProps, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fonts, palette, space } from "../theme";
 import { Float, LinearGradient, Pulse } from "./motion";
 import { Button, IconButton, T, useAccent } from "./primitives";
+import { keyboardBehavior } from "./keyboard";
 
 export function Header({ title, subtitle, back = true, right }: { title?: string; subtitle?: string; back?: boolean; right?: React.ReactNode }) {
   return (
@@ -67,7 +68,7 @@ export function Screen({
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       {!noHeader && (title || back) ? <Header title={title} subtitle={subtitle} back={back} right={headerRight} /> : null}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboardBehavior}>
         {scroll ? (
           <ScrollView
             keyboardShouldPersistTaps="handled"

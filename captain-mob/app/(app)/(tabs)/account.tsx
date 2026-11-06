@@ -1,4 +1,4 @@
-import { Avatar, Badge, Card, Divider, ListItem, palette, Screen, space, T, useAuth } from "@goloc/core";
+import { Avatar, Badge, Card, Divider, ListItem, palette, Screen, space, T, useAuth, BrandMark } from "@goloc/core";
 import { router } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -64,7 +64,8 @@ export default function Account() {
         <Divider />
         <ListItem icon="log-out-outline" title="Sign out" danger onPress={logout} />
       </Card>
-      <T variant="caption" center style={{ marginTop: space.xl }}>GoLoc Captain · Your city. Your business. Your income.</T>
+      <BrandMark size={36} style={{ alignSelf: "center", marginTop: space.xl, opacity: 0.9 }} />
+      <T variant="caption" center style={{ marginTop: space.sm }}>GoLoc Captain · Your city. Your business. Your income.</T>
     </Screen>
   );
 }

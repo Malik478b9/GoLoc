@@ -1,4 +1,4 @@
-import { Avatar, Card, Divider, ListItem, palette, Screen, space, T, useAuth } from "@goloc/core";
+import { Avatar, Card, Divider, ListItem, palette, Screen, space, T, useAuth, BrandMark } from "@goloc/core";
 import { router } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -33,7 +33,8 @@ export default function Profile() {
       <Card padded={false} style={{ marginTop: space.lg, overflow: "hidden" }}>
         <ListItem icon="log-out-outline" title="Sign out" danger onPress={logout} />
       </Card>
-      <T variant="caption" center style={{ marginTop: space.xl, color: palette.muted }}>GoLoc · Local people. Real places. Safe bookings.</T>
+      <BrandMark size={36} style={{ alignSelf: "center", marginTop: space.xl, opacity: 0.9 }} />
+      <T variant="caption" center style={{ marginTop: space.sm, color: palette.muted }}>GoLoc · Local people. Real places. Safe bookings.</T>
     </Screen>
   );
 }

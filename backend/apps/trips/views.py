@@ -125,12 +125,13 @@ class SharedTripView(APIView):
 
 
 SHARE_PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="https://goloc.in/favicon.png">
 <title>GoLoc · Live trip</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#F6EFE1;color:#12211F}
 #map{height:62vh}.p{padding:16px}h1{font-size:18px;margin:0 0 4px}.m{color:#8A7F6B;font-size:14px}</style></head>
-<body><div id="map"></div><div class="p"><h1 id="t">Loading…</h1><div class="m" id="s"></div>
+<body><div id="map"></div><div class="p"><img src="https://goloc.in/goloc-nav.png" alt="GoLoc" height="30" style="display:block;height:30px;width:auto;margin:0 0 10px"><h1 id="t">Loading…</h1><div class="m" id="s"></div>
 <p class="m">Shared from GoLoc. Emergency? Call <b>112</b>.</p></div>
 <script>const URL_=%s;const map=L.map('map').setView([%s,%s],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);let mk=null;

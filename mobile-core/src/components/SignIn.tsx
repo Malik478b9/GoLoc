@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "../api/client";
@@ -8,6 +8,8 @@ import { useAuth } from "../auth";
 import { fonts, gradients, palette, radius, space } from "../theme";
 import { Field, Segmented } from "../ui/inputs";
 import { Appear, Float, LinearGradient, Orbs } from "../ui/motion";
+import { BrandLockup } from "../ui/brand";
+import { keyboardBehavior } from "../ui/keyboard";
 import { Button, T, useAccent, useWide } from "../ui/primitives";
 
 type Mode = "signin" | "signup";
@@ -32,6 +34,13 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
   const [error, setError] = useState<string | undefined>();
   const [info, setInfo] = useState<string | undefined>();
   const codeRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+
+  // Keep the form (input + button) in view while the keyboard is open.
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidShow", () => scrollRef.current?.scrollToEnd({ animated: true }));
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     lastPhone().then((p) => {
@@ -104,14 +113,19 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
       <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <Orbs colors={[palette.marigold, accent.main, palette.coral]} />
     <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAvoidingView style={[{ flex: 1 }, wide && styles.wideRow]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboardBehavior}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[{ flexGrow: 1 }, wide && styles.wideRow]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={[styles.hero, wide && styles.wideHero]}>
           <Appear>
             <Float distance={4}>
-              <LinearGradient colors={accent.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logo}>
-                <T style={styles.logoText}>G</T>
-                <View style={styles.logoDot} />
-              </LinearGradient>
+              <BrandLockup height={52} />
             </Float>
           </Appear>
           <Appear i={1}><T variant="label" color={palette.marigold} style={{ marginTop: space.xl }}>{appName}</T></Appear>
@@ -181,6 +195,7 @@ export function SignIn({ appName, tagline, supporting, bullets }: { appName: str
             </>
           )}
         </View>
+      </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
     </View>
@@ -193,9 +208,6 @@ const styles = StyleSheet.create({
   wideHero: { flexGrow: 0, flexShrink: 0, flexBasis: 460, width: 460, justifyContent: "center", paddingBottom: 0 },
   widePanel: { width: 440, borderRadius: 28 },
   hero: { flex: 1, paddingHorizontal: space.xl, justifyContent: "flex-end", paddingBottom: space.xl },
-  logo: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
-  logoText: { fontFamily: fonts.display, fontSize: 32, color: palette.white, lineHeight: 38 },
-  logoDot: { position: "absolute", right: 10, top: 10, width: 9, height: 9, borderRadius: 5, backgroundColor: palette.marigold },
   tagline: { fontFamily: fonts.display, fontSize: 38, lineHeight: 44, color: palette.white, marginTop: space.sm, letterSpacing: -1 },
   bullet: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 14, paddingVertical: 9, paddingHorizontal: 12 },
   bulletIcon: { width: 20, height: 20, borderRadius: 10, backgroundColor: palette.marigold, alignItems: "center", justifyContent: "center" },
