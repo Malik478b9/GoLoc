@@ -90,6 +90,15 @@ export default function CaptainBooking() {
         {b.tier !== "standard" ? ` · ${TIER_LABEL[b.tier]} tier` : ""}
       </T>
 
+      {b.guest_details?.some((g) => g.name) ? (
+        <Card style={{ marginTop: space.md }}>
+          <T variant="label" style={{ marginBottom: space.sm }}>Guests · {b.guest_details.length}</T>
+          {b.guest_details.map((g, i) => (
+            <T key={i} variant="bodyBold" style={{ paddingVertical: 3 }}>{i + 1}. {g.name || `Guest ${i + 1}`}{i === 0 ? " · booked this trip" : ""}</T>
+          ))}
+        </Card>
+      ) : null}
+
       <View style={{ marginTop: space.lg, gap: space.md }}>
         {b.status === "requested" && <Banner tone="warning" icon="time" title={`Respond within ${timeLeft(b.request_expires_at)}`} body="Requests expire automatically. Quick replies rank you higher." />}
         {b.status === "accepted" && <Banner tone="info" icon="card" title="Waiting for payment" body={`The traveler has ${timeLeft(b.payment_due_at)} to pay. You'll get a notification when it's confirmed.`} />}

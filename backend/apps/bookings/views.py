@@ -79,6 +79,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
         booking = services.create_request(
             request.user, d["service"], tier=d["tier"], guests=d["guests"], start_date=d["start_date"],
             end_date=d.get("end_date"), start_time=d.get("start_time"), meeting_point=d["meeting_point"], note=d["note"],
+            guest_details=d.get("guest_details"),
         )
         return Response(BookingDetailSerializer(booking, context={"request": request, "role": "traveler"}).data,
                         status=status.HTTP_201_CREATED)

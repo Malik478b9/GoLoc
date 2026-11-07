@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  addDays, AIField, api, ApiError, Avatar, Banner, BookingDetail, Button, Calendar, CaptainCard, Card, DateRangeCalendar, Divider, ErrorView, Field, Loading, longDate, money, palette, Quote, radius, Rating, Row, Screen, Service, space, Stepper, T, TIER_LABEL, toast,
+  addDays, AIField, api, ApiError, Avatar, Banner, BookingDetail, Button, Calendar, CaptainCard, Card, DateRangeCalendar, Divider, ErrorView, Field, Loading, longDate, money, palette, Quote, radius, Rating, Row, Screen, Service, space, Stepper, T, TIER_LABEL, toast, useAuth,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -9,6 +9,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 type ServiceInfo = { service: Service; captain: CaptainCard; refund_schedule: { min_hours_before: number; fare_refund_percent: number }[] };
 type Tier = "normal" | "medium" | "lavish";
+type Guest = { name: string; phone: string };
+
+const tenDigits = (phone?: string | null) => (phone ?? "").replace(/\D/g, "").slice(-10);
 
 export default function Book() {
   const { serviceId, date: presetDate, end: presetEnd, guests: presetGuests, tier: presetTier } =
@@ -25,6 +28,16 @@ export default function Book() {
   const [end, setEnd] = useState<string | undefined>(presetEnd);
   const [meeting, setMeeting] = useState("");
   const [note, setNote] = useState("");
+  const { user } = useAuth();
+  // One row per guest; guest 1 is the traveler (filled from their account, still editable).
+  const [people, setPeople] = useState<Guest[]>([{ name: user?.full_name ?? "", phone: tenDigits(user?.phone_number) }]);
+  useEffect(() => {
+    setPeople((cur) => (cur.length === guests ? cur : Array.from({ length: guests }, (_, i) => cur[i] ?? { name: "", phone: "" })));
+  }, [guests]);
+  const setPerson = (i: number, patch: Partial<Guest>) => setPeople((cur) => cur.map((g, j) => (j === i ? { ...g, ...patch } : g)));
+  const missingName = people.findIndex((g) => g.name.trim().length < 2);
+  const badPhone = people.findIndex((g, i) => (i === 0 ? tenDigits(g.phone).length !== 10 : g.phone.trim() !== "" && tenDigits(g.phone).length !== 10));
+  const peopleReady = missingName < 0 && badPhone < 0;
 
   useEffect(() => {
     if (svc && guests > svc.max_guests) setGuests(svc.max_guests);
@@ -61,6 +74,7 @@ export default function Book() {
         ...(isGuide ? { end_date: end } : {}),
         meeting_point: meeting.trim(),
         note: note.trim(),
+        guest_details: people.map((g) => ({ name: g.name.trim(), phone: g.phone.trim() })),
       }),
     onSuccess: (b) => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
@@ -85,7 +99,7 @@ export default function Book() {
             <T variant="caption">Total incl. insurance</T>
             <T variant="title">{q ? money(q.total) : "—"}</T>
           </View>
-          <Button title={datesReady ? "Send request" : isGuide ? "Pick your dates" : "Pick a date"} disabled={!datesReady || request.isPending} loading={request.isPending} onPress={() => request.mutate()} style={{ flex: 1.3 }} />
+          <Button title={!datesReady ? (isGuide ? "Pick your dates" : "Pick a date") : !peopleReady ? "Add guest details" : "Send request"} disabled={!datesReady || !peopleReady || request.isPending} loading={request.isPending} onPress={() => request.mutate()} style={{ flex: 1.3 }} />
         </Row>
       }
     >
@@ -140,6 +154,23 @@ export default function Book() {
         {!isPackage && guests > svc.included_guests ? (
           <T variant="caption" style={{ marginTop: 6 }}>Includes {svc.included_guests}; {money(svc.extra_guest_price)} per extra guest{isGuide ? " per day" : ""}.</T>
         ) : null}
+      </Card>
+
+      <Card style={{ marginTop: space.md }}>
+        <T variant="h2">Who's travelling</T>
+        <T variant="caption" style={{ marginBottom: space.md }}>
+          A name for each guest, for your Captain and your trip insurance. Your Captain sees names only, never mobile numbers.
+        </T>
+        {people.map((g, i) => (
+          <View key={i} style={i > 0 ? styles.guestRow : undefined}>
+            <T variant="label" style={{ marginBottom: space.sm }}>{i === 0 ? "Guest 1 · You" : `Guest ${i + 1}`}</T>
+            <Field label="Full name" placeholder={i === 0 ? "Your name" : "As on their ID"} value={g.name} onChangeText={(v) => setPerson(i, { name: v })}
+              autoCapitalize="words" maxLength={80} error={i === missingName && g.name.length > 0 ? "Add at least 2 letters" : undefined} />
+            <Field label={i === 0 ? "Mobile" : "Mobile (optional)"} prefix="+91" keyboardType="phone-pad" placeholder="98765 43210" maxLength={14}
+              value={g.phone} onChangeText={(v) => setPerson(i, { phone: v })}
+              error={i === badPhone && g.phone.length > 0 ? "Enter a 10-digit mobile number" : undefined} />
+          </View>
+        ))}
       </Card>
 
       <Card style={{ marginTop: space.md }}>
@@ -204,4 +235,5 @@ const styles = StyleSheet.create({
   tier: { padding: space.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: palette.line, backgroundColor: palette.paper },
   tierActive: { borderColor: palette.rickshaw, backgroundColor: palette.rickshawSoft },
   line: { justifyContent: "space-between", paddingVertical: 4 },
+  guestRow: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, paddingTop: space.md, marginTop: space.xs },
 });

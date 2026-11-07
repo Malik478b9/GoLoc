@@ -83,12 +83,13 @@ class BookingDetailSerializer(BookingListSerializer):
     refunded = serializers.SerializerMethodField()
     service_id = serializers.UUIDField(source="service.id", read_only=True)
     itinerary = serializers.SerializerMethodField()
+    guest_details = serializers.SerializerMethodField()
 
     class Meta(BookingListSerializer.Meta):
         fields = BookingListSerializer.Meta.fields + [
             "service_id", "meeting_point", "note", "service_snapshot", "insurance_fee", "insurance_policy_no", "commission",
             "cancelled_by", "cancel_reason", "refund_percent", "refunded", "accepted_at", "confirmed_at", "started_at",
-            "completed_at", "cancelled_at", "start_pin", "end_pin", "can_complete_from", "share_url", "review", "itinerary", "traveler_shares_contact", "events", "actions",
+            "completed_at", "cancelled_at", "start_pin", "end_pin", "can_complete_from", "share_url", "review", "itinerary", "guest_details", "traveler_shares_contact", "events", "actions",
         ]
 
     def get_start_pin(self, obj):
@@ -115,6 +116,13 @@ class BookingDetailSerializer(BookingListSerializer):
             qs = qs.filter(is_published=True, status=Itinerary.Status.READY)
         it = qs.order_by("-updated_at").first()
         return ItinerarySummarySerializer(it, context=self.context).data if it else None
+
+    def get_guest_details(self, obj):
+        """Traveler and admin see every guest's mobile; Captains and agencies see names only (privacy policy)."""
+        guests = obj.guest_details or []
+        if self.role in {"traveler", "admin"}:
+            return guests
+        return [{"name": g.get("name", "")} for g in guests]
 
     def get_review(self, obj):
         review = getattr(obj, "review", None)
@@ -163,3 +171,7 @@ class BookingCreateSerializer(serializers.Serializer):
     start_time = serializers.TimeField(required=False, allow_null=True)
     meeting_point = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
     note = serializers.CharField(max_length=1000, required=False, allow_blank=True, default="")
+    guest_details = serializers.ListField(
+        child=serializers.DictField(), required=False, allow_null=True, max_length=20,
+        help_text='[{"name", "phone"}] — one per guest, guest 1 first (the traveler).',
+    )

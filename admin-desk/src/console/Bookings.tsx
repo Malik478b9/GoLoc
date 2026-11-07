@@ -9,6 +9,7 @@ type Row = {
   traveler: { name: string; phone?: string }; created_at: string;
 };
 type Detail = Row & {
+  guest_details?: { name: string; phone?: string }[];
   fare: number; captain_net: number; insurance_premium: number; insurance_policy_no: string; meeting_point: string; note: string; start_time: string;
   cancelled_by: string; cancel_reason: string; refund_percent: number | null; refunded: number; start_pin: null; share_token: string;
   events: { kind: string; message: string; actor_role: string; created_at: string }[];
@@ -88,6 +89,9 @@ export function BookingDetail({ id }: { id: string }) {
           <div className="pad kv">
             <div><span>Captain</span><b><a href={`#/captains/${b.captain.id}`}>{b.captain.name} · {b.captain.code}</a> · {b.captain.phone}</b></div>
             <div><span>Traveler</span><b>{b.traveler.name} · {b.traveler.phone}</b></div>
+            {(b.guest_details ?? []).slice(1).map((g, i) => (
+              <div key={i}><span>Guest {i + 2}</span><b>{g.name || "—"}{g.phone ? ` · ${g.phone}` : ""}</b></div>
+            ))}
             <div><span>Meeting point</span><b>{b.meeting_point || "—"}</b></div>
             <div><span>Note</span><b>{b.note || "—"}</b></div>
             {live ? (

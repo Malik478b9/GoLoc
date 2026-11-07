@@ -55,6 +55,10 @@ class Booking(models.Model):
     kind = models.CharField(max_length=12)
     tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.STANDARD)
     guests = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(20)])
+    guest_details = models.JSONField(
+        default=list, blank=True,
+        help_text='One {"name", "phone"} per guest; guest 1 is the traveler. Captains see names only.',
+    )
     start_date = models.DateField()
     end_date = models.DateField()
     start_time = models.TimeField(default=time(9, 0))

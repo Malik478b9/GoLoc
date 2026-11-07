@@ -509,3 +509,41 @@ class DiscoverySearchTests(FlowBase):
         self.assertEqual([d["status"] for d in cal["days"]], ["booked", "blocked", "off", "free"])
         self.assertEqual(len(cal["weekly"]), 7)
         self.assertEqual(cal["unavailable"], [d["date"] for d in cal["days"][:3]])
+
+
+class GuestDetailsTests(FlowBase):
+    def test_names_and_mobiles_per_guest(self):
+        res = self.request(guests=3, guest_details=[
+            {"name": "", "phone": ""},  # guest 1 = the traveler, filled from their account
+            {"name": "  Rahul   Mehta ", "phone": "98765 43210"},
+            {"name": "Kiran", "phone": ""},  # mobile optional after guest 1
+        ])
+        self.assertEqual(res.status_code, 201, res.data)
+        code = res.data["code"]
+        self.assertEqual(res.data["guest_details"], [
+            {"name": "Ananya Reddy", "phone": self.traveler.phone_number},
+            {"name": "Rahul Mehta", "phone": "+919876543210"},
+            {"name": "Kiran", "phone": ""},
+        ])
+        # Captains see names only; admins see everything.
+        cap_view = self.cap.get(f"/api/v1/bookings/{code}/").data["guest_details"]
+        self.assertEqual(cap_view, [{"name": "Ananya Reddy"}, {"name": "Rahul Mehta"}, {"name": "Kiran"}])
+        self.assertEqual(self.admin.get(f"/api/v1/admin/bookings/{code}/").data["guest_details"][1]["phone"], "+919876543210")
+
+    def test_every_guest_needs_a_name_and_the_list_must_match(self):
+        bad = [
+            [{"name": "Ananya"}],  # 1 entry for 2 guests
+            [{"name": "Ananya"}, {"name": " "}],  # unnamed guest
+            [{"name": "Ananya"}, {"name": "Rahul", "phone": "12345"}],  # bad mobile
+        ]
+        for details in bad:
+            res = self.request(guests=2, guest_details=details)
+            self.assertEqual(res.status_code, 400, details)
+            self.assertEqual(res.data["code"], "guest_details")
+        self.assertFalse(Booking.objects.exists())
+
+    def test_older_apps_without_guest_details_still_work(self):
+        res = self.request(guests=2)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["guest_details"][0]["phone"], self.traveler.phone_number)
+        self.assertEqual(len(res.data["guest_details"]), 2)

@@ -181,6 +181,8 @@ export type Booking = {
 
 export type BookingDetail = Booking & {
   service_id: string;
+  /** One per guest, guest 1 = the traveler. `phone` is only sent to the traveler and admins. */
+  guest_details: { name: string; phone?: string }[];
   itinerary: ItinerarySummary | null;
   meeting_point: string;
   note: string;

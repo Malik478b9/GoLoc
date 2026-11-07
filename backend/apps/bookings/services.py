@@ -51,7 +51,39 @@ def trip_end_date(service, start_date, end_date=None):
     return start_date + timedelta(days=pricing.trip_days(service) - 1)
 
 
-def create_request(traveler, service, *, tier, guests, start_date, end_date=None, start_time=None, meeting_point="", note="") -> Booking:
+def clean_guest_details(traveler, guests: int, raw) -> list[dict]:
+    """
+    One {"name", "phone"} per guest. Guest 1 is the traveler: their account fills any blank.
+    Name is required for everyone; mobile is required for guest 1 and optional for the rest.
+    Older app versions send nothing: the traveler fills guest 1 and the rest stay unnamed.
+    """
+    from apps.accounts.phone import InvalidPhoneNumber, normalize_phone
+
+    if raw is None:
+        return [{"name": traveler.full_name or "", "phone": traveler.phone_number}] + [{"name": "", "phone": ""} for _ in range(guests - 1)]
+    if not isinstance(raw, list) or len(raw) != guests:
+        raise bad_request(f"Add the name of each of your {guests} guests.", "guest_details")
+    cleaned = []
+    for i, g in enumerate(raw, start=1):
+        g = g if isinstance(g, dict) else {}
+        name = " ".join(str(g.get("name") or "").split())[:80]
+        phone = str(g.get("phone") or "").strip()
+        if i == 1:
+            name = name or traveler.full_name or ""
+            phone = phone or traveler.phone_number
+        if len(name) < 2:
+            raise bad_request(f"Add a name for guest {i}.", "guest_details")
+        if phone:
+            try:
+                phone = normalize_phone(phone)
+            except InvalidPhoneNumber:
+                raise bad_request(f"Guest {i}: enter a valid mobile number, or leave it empty.", "guest_details")
+        cleaned.append({"name": name, "phone": phone})
+    return cleaned
+
+
+def create_request(traveler, service, *, tier, guests, start_date, end_date=None, start_time=None, meeting_point="", note="",
+                   guest_details=None) -> Booking:
     captain = service.captain
     if not service.is_active or not captain.is_bookable:
         raise conflict("This Captain isn't taking bookings right now.", "not_bookable")
@@ -64,6 +96,7 @@ def create_request(traveler, service, *, tier, guests, start_date, end_date=None
         tier = Booking.Tier.STANDARD
     if guests > service.max_guests:
         raise bad_request(f"This trip takes up to {service.max_guests} guests.", "too_many_guests")
+    guest_details = clean_guest_details(traveler, guests, guest_details)
     today = timezone.localdate()
     if start_date < today:
         raise bad_request("Choose today or a later date.", "date_in_past")
@@ -86,7 +119,7 @@ def create_request(traveler, service, *, tier, guests, start_date, end_date=None
         booking = Booking(
             code=next_public_code("BKG"), traveler=traveler, captain=captain, service=service, city=captain.city,
             agency_id=captain.agency_id,
-            kind=service.kind, tier=tier, guests=guests, start_date=start_date, end_date=end_date, start_time=start_time,
+            kind=service.kind, tier=tier, guests=guests, guest_details=guest_details, start_date=start_date, end_date=end_date, start_time=start_time,
             meeting_point=meeting_point[:200], note=note[:1000], service_snapshot=_snapshot(service),
             fare=q.fare, insurance_fee=q.insurance_fee, total=q.total, commission=q.commission,
             captain_net=q.captain_net, insurance_premium=q.insurance_premium,

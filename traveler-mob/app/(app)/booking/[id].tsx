@@ -80,6 +80,18 @@ export default function BookingScreen() {
         {b.tier !== "standard" ? ` · ${TIER_LABEL[b.tier]}` : ""}
       </T>
 
+      {b.guest_details?.some((g) => g.name) ? (
+        <Card style={{ marginTop: space.md }}>
+          <T variant="label" style={{ marginBottom: space.sm }}>Travellers · {b.guest_details.length}</T>
+          {b.guest_details.map((g, i) => (
+            <Row key={i} style={{ justifyContent: "space-between", paddingVertical: 4 }}>
+              <T variant="bodyBold">{g.name || `Guest ${i + 1}`}{i === 0 ? " (you)" : ""}</T>
+              {g.phone ? <T variant="caption">{g.phone}</T> : null}
+            </Row>
+          ))}
+        </Card>
+      ) : null}
+
       {/* ----- what happens next ----- */}
       <View style={{ marginTop: space.lg, gap: space.md }}>
         {b.status === "requested" && (
