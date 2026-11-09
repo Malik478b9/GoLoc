@@ -48,10 +48,12 @@ def enabled() -> bool:
     return provider() is not None
 
 
-def complete_json(system: str, user: str, schema: dict, *, name: str, effort: str = "medium", max_tokens: int = 16000) -> Result:
+def complete_json(system: str, user: str, schema: dict, *, name: str, effort: str = "medium", max_tokens: int = 16000,
+                  groq_model: str | None = None) -> Result:
+    """`groq_model` picks another Groq model (each has its own daily allowance), e.g. for bulk jobs."""
     which = provider()
     if which == "groq":
-        return _groq(system, user, schema, name, effort, max_tokens)
+        return _groq(system, user, schema, name, effort, max_tokens, groq_model or GROQ_MODEL)
     if which == "anthropic":
         return _claude(system, user, schema, effort, max_tokens)
     raise LLMError("AI isn't set up on this server yet.")
@@ -73,7 +75,7 @@ def _error_code(exc) -> str:
     return error.get("code", "") if isinstance(error, dict) else ""
 
 
-def _groq(system, user, schema, name, effort, max_tokens) -> Result:
+def _groq(system, user, schema, name, effort, max_tokens, model=GROQ_MODEL) -> Result:
     import groq
 
     client = groq.Groq(api_key=settings.GROQ_API_KEY, timeout=180, max_retries=2)
@@ -84,7 +86,7 @@ def _groq(system, user, schema, name, effort, max_tokens) -> Result:
         for attempt in range(3):
             try:
                 response = client.chat.completions.create(
-                    model=GROQ_MODEL,
+                    model=model,
                     messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                     response_format={"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}},
                     reasoning_effort=effort,

@@ -88,6 +88,8 @@ class Command(BaseCommand):
         parser.add_argument("--all", action="store_true", help="Retranslate everything, not just new strings.")
         parser.add_argument("--dry-run", action="store_true")
         parser.add_argument("--lang", action="append", help="Only these languages (repeatable).")
+        parser.add_argument("--groq-model", default=None,
+                            help="Another Groq model for this bulk job (its own daily allowance), e.g. openai/gpt-oss-20b.")
 
     def handle(self, *args, **opts):
         strings = collect()
@@ -112,7 +114,8 @@ class Command(BaseCommand):
                 for attempt in range(4):  # rate limits and the odd malformed reply: wait and retry
                     try:
                         res = llm.complete_json(SYSTEM.replace("{language}", LANGUAGES[code]), payload, SCHEMA,
-                                                name="app_strings", effort="low", max_tokens=16000)
+                                                name="app_strings", effort="low", max_tokens=16000,
+                                                groq_model=opts["groq_model"])
                         break
                     except llm.LLMError as exc:
                         self.stderr.write(f"  batch {start} try {attempt + 1}: {exc}")

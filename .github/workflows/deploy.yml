@@ -64,6 +64,8 @@ jobs:
             cd /opt/goloc
             git fetch origin main
             git reset --hard origin/main
+            # Leftovers from an interrupted recreate (named <hash>_goloc-api-1) block the new containers.
+            docker ps -aq --filter name=_goloc- | xargs -r docker rm -f
             docker compose --env-file .env.production up -d --build --remove-orphans
             docker image prune -f
             sleep 20
