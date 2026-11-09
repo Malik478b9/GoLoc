@@ -47,7 +47,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0E2B2C",
+          "backgroundColor": "#01245A",
           "imageWidth": 150,
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain"
@@ -67,7 +67,8 @@
         }
       ],
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      ["expo-audio", { "microphonePermission": "GoLoc uses the microphone so you can speak instead of typing." }]
     ],
     "experiments": {
       "typedRoutes": false

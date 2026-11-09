@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { api, DiscoverFeed, fonts, gradients, LinearGradient, palette, Pressy, space, T, toastError, TripPoster } from "@goloc/core";
+import { api, DiscoverFeed, fonts, gradients, LinearGradient, palette, Pressy, radius, shadow, space, T, toastError, TripPoster } from "@goloc/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -34,21 +34,16 @@ export function useToggleSavedTrip() {
   };
 }
 
-const VIBE_TINT: Record<string, string> = {
-  beach: "#1F8FB5", mountains: "#3C6E9E", snow: "#3C6E9E", spiritual: "#E8A33D", royal: "#C2410C", food: "#E15B3F",
-  romance: "#C2416B", nature: "#2F7A6B", monsoon: "#2F7A6B", adventure: "#8A4FD8", heritage: "#B5650B",
-};
-
-/** Darkens the bottom of a photo so white text stays readable (stacked bands = a soft gradient). */
+/** Darkens the bottom of a photo so white text stays readable. */
 function Scrim() {
-  return <LinearGradient pointerEvents="none" colors={["rgba(7,26,27,0)", "rgba(7,26,27,0.15)", "rgba(7,26,27,0.6)", "rgba(7,26,27,0.94)"]} locations={[0, 0.35, 0.62, 1]} style={StyleSheet.absoluteFill} />;
+  return <LinearGradient pointerEvents="none" colors={gradients.glassDark as any} locations={[0.3, 0.65, 1]} style={StyleSheet.absoluteFill} />;
 }
 
-function Pill({ icon, label, bg = "rgba(255,255,255,0.92)" }: { icon?: keyof typeof Ionicons.glyphMap; label: string; bg?: string }) {
+function Pill({ icon, label }: { icon?: keyof typeof Ionicons.glyphMap; label: string }) {
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
+    <View style={styles.pill}>
       {icon ? <Ionicons name={icon} size={11} color={palette.ink} /> : null}
-      <T style={{ fontSize: 11, fontWeight: "700", color: palette.ink }} numberOfLines={1}>{label}</T>
+      <T style={{ fontSize: 11.5, fontFamily: fonts.bold, color: palette.ink }} numberOfLines={1}>{label}</T>
     </View>
   );
 }
@@ -60,11 +55,11 @@ export const PosterTile = memo(function PosterTile({ p, width = 270, onToggleSav
       {p.image ? (
         <Image source={{ uri: p.image }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={250} />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: VIBE_TINT[p.vibes[0]] ?? palette.rickshaw }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.night2 }]} />
       )}
       <Scrim />
       <View style={styles.tileTop}>
-        {p.event ? <Pill icon="sparkles" label={p.event} bg={palette.marigold} /> : p.in_season ? <Pill icon="sunny" label="In season" bg={palette.marigold} /> : <Pill icon="calendar-outline" label={p.best_months} />}
+        {p.event ? <Pill icon="sparkles" label={p.event} /> : p.in_season ? <Pill icon="sunny" label="In season" /> : <Pill icon="calendar-outline" label={p.best_months} />}
         <Pressy
           onPress={() => onToggleSave(p)}
           hitSlop={10}
@@ -81,58 +76,45 @@ export const PosterTile = memo(function PosterTile({ p, width = 270, onToggleSav
         <T style={styles.tileTitle} numberOfLines={2}>{p.title}</T>
         <T style={styles.tileTag} numberOfLines={2}>{p.tagline}</T>
         <View style={styles.tileFoot}>
-          <Ionicons name="location" size={12} color={palette.marigold} />
           <T style={styles.tileMeta} numberOfLines={1}>{p.name}{p.travel_hint ? ` · ${p.travel_hint}` : ""}</T>
+          <View style={styles.plan}>
+            <T style={{ fontSize: 12.5, fontFamily: fonts.bold, color: palette.ink }}>Plan</T>
+            <Ionicons name="arrow-forward" size={13} color={palette.ink} />
+          </View>
         </View>
-        <LinearGradient colors={gradients.sunset as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.plan}>
-          <T style={{ fontSize: 12.5, fontFamily: fonts.bold, color: palette.white }}>Plan this trip</T>
-          <Ionicons name="arrow-forward" size={13} color={palette.white} />
-        </LinearGradient>
       </View>
     </Pressy>
   );
 });
 
 /** The home screen's one row of trip posters. */
-export function PosterRail({ title, subtitle, items, badge }: { title: string; subtitle: string; items: TripPoster[]; badge?: string }) {
+/** The home screen's one row of trip posters (the headline is drawn by the screen). */
+export function PosterRail({ items }: { items: TripPoster[] }) {
   const toggle = useToggleSavedTrip();
   return (
-    <View style={{ marginTop: space.xxl }}>
-      <View style={{ paddingHorizontal: space.lg, marginBottom: space.md }}>
-        {badge ? (
-          <View style={styles.badge}>
-            <Ionicons name="sparkles" size={11} color={palette.night} />
-            <T style={{ fontSize: 11, fontWeight: "800", color: palette.night }}>{badge}</T>
-          </View>
-        ) : null}
-        <T variant="title">{title}</T>
-        <T variant="caption">{subtitle}</T>
-      </View>
-      <FlatList
-        horizontal
-        data={items}
-        keyExtractor={(p) => p.key}
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={270 + 14}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: space.lg, gap: 14 }}
-        renderItem={({ item }) => <PosterTile p={item} onToggleSave={toggle} />}
-      />
-    </View>
+    <FlatList
+      horizontal
+      data={items}
+      keyExtractor={(p) => p.key}
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={270 + 16}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingHorizontal: space.xl, gap: 16 }}
+      renderItem={({ item }) => <PosterTile p={item} onToggleSave={toggle} />}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  tile: { height: 360, borderRadius: 28, overflow: "hidden", backgroundColor: palette.night, shadowColor: "#0F1E1C", shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
-  tileTop: { position: "absolute", top: 12, left: 12, right: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  heart: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.92)", alignItems: "center", justifyContent: "center" },
-  tileBody: { position: "absolute", left: 14, right: 14, bottom: 14 },
-  city: { fontSize: 11, fontWeight: "800", letterSpacing: 1.6, color: palette.marigold },
-  tileTitle: { fontSize: 23, lineHeight: 27, fontFamily: fonts.display, color: palette.white, marginTop: 4, letterSpacing: -0.3 },
-  tileTag: { fontSize: 12.5, lineHeight: 17, color: "#E6EEEB", marginTop: 4 },
-  tileFoot: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
-  tileMeta: { fontSize: 11.5, color: "#E6EEEB", flex: 1 },
-  plan: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 5, marginTop: 12, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4, maxWidth: 170 },
-  badge: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, backgroundColor: palette.marigold, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 6 },
+  tile: { height: 360, borderRadius: radius.xl, overflow: "hidden", backgroundColor: palette.night, ...shadow },
+  tileTop: { position: "absolute", top: 14, left: 14, right: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  heart: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.white, alignItems: "center", justifyContent: "center" },
+  tileBody: { position: "absolute", left: 18, right: 18, bottom: 18 },
+  city: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 1.4, color: palette.onDarkMuted },
+  tileTitle: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display, color: palette.white, marginTop: 6, letterSpacing: -0.3 },
+  tileTag: { fontSize: 13, lineHeight: 18, color: palette.onDark, marginTop: 6 },
+  tileFoot: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.lg },
+  tileMeta: { fontSize: 12, color: palette.onDarkMuted, flex: 1 },
+  plan: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radius.pill, backgroundColor: palette.white, paddingHorizontal: 14, paddingVertical: 8 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radius.pill, backgroundColor: palette.white, paddingHorizontal: 10, paddingVertical: 5, maxWidth: 170 },
 });

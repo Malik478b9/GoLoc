@@ -18,13 +18,27 @@ def _saved_keys(request) -> list[str]:
     return list(SavedTrip.objects.filter(traveler=request.user).values_list("spot_key", flat=True))
 
 
+def _point(request) -> tuple | None:
+    """Exact spot to measure distances from: ?lat=&lng=, else the signed-in traveler's saved place."""
+    try:
+        lat, lng = float(request.query_params["lat"]), float(request.query_params["lng"])
+        if 6 <= lat <= 37.5 and 68 <= lng <= 98:
+            return lat, lng
+    except (KeyError, ValueError):
+        pass
+    u = request.user
+    if u.is_authenticated and u.place_lat is not None and u.place_lng is not None:
+        return float(u.place_lat), float(u.place_lng)
+    return None
+
+
 class DiscoverView(APIView):
     """GET /discover/?city=hyderabad — the home screen's 7 seasonal, distance-aware trip posters. Public."""
 
     permission_classes = [AllowAny]
 
     def get(self, request):
-        return Response(feed(request.query_params.get("city"), saved=set(_saved_keys(request))))
+        return Response(feed(request.query_params.get("city"), saved=set(_saved_keys(request)), point=_point(request)))
 
 
 class SavedTripsView(APIView):
@@ -33,7 +47,7 @@ class SavedTripsView(APIView):
     permission_classes = [IsTraveler]
 
     def get(self, request):
-        return Response(saved_posters(request.query_params.get("city"), _saved_keys(request)))
+        return Response(saved_posters(request.query_params.get("city"), _saved_keys(request), point=_point(request)))
 
 
 class SaveTripView(APIView):

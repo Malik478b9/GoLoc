@@ -1,4 +1,4 @@
-import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, Paginated, Post, useAuth } from "@goloc/core";
+import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, Paginated, Place, Post, useAuth, UserPlace } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 
@@ -17,6 +17,32 @@ export function useCity(): City | undefined {
 export async function changeCity(cityId: string) {
   const me = await api.patch<any>("/auth/me/", { city_id: cityId });
   useAuth.getState().setUser(me);
+}
+
+/** Where the traveler is exploring from (any place in India); falls back to their GoLoc city. */
+export function usePlace(): UserPlace | undefined {
+  const user = useAuth((s) => s.user);
+  const city = useCity();
+  if (user?.place) return user.place;
+  return city ? { name: city.name, kind: "City", area: "", state: city.state, lat: null, lng: null, nearest_city_km: 0 } : undefined;
+}
+
+/** Set any place in India; the server also moves the traveler's GoLoc city to the nearest one. */
+export async function changePlace(p: Place) {
+  const me = await api.patch<any>("/auth/me/", { set_place: { name: p.name, kind: p.kind, area: p.area, state: p.state, lat: p.lat, lng: p.lng } });
+  useAuth.getState().setUser(me);
+}
+
+/** Type-ahead search over every place in India. */
+export function usePlaceSearch(q: string) {
+  const term = q.trim();
+  return useQuery({
+    queryKey: ["places", term.toLowerCase()],
+    queryFn: () => api.get<Place[]>("/cities/places/", { q: term }),
+    enabled: term.length >= 2,
+    staleTime: 60 * 60_000,
+    placeholderData: (prev) => prev,
+  });
 }
 
 // ---------------------------------------------------------------- captains
@@ -40,10 +66,11 @@ export function useDiscovery(params: Record<string, string | undefined>) {
 }
 
 /** Seasonal, distance-aware trip posters for the home screen. */
-export function useDiscoverFeed(city?: string) {
+export function useDiscoverFeed(city?: string, place?: UserPlace) {
+  const at = place?.lat != null && place?.lng != null ? { lat: place.lat, lng: place.lng } : {};
   return useQuery({
-    queryKey: ["discover", city],
-    queryFn: () => api.get<DiscoverFeed>("/discover/", { city }),
+    queryKey: ["discover", city, at.lat ?? null, at.lng ?? null],
+    queryFn: () => api.get<DiscoverFeed>("/discover/", { city, ...at }),
     enabled: !!city,
     staleTime: 10 * 60_000,
     // The AI copy is written in the background on the first visit of the month: pick it up shortly after.

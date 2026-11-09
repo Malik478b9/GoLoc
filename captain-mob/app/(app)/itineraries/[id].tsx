@@ -1,6 +1,6 @@
 import {
-  api, ApiError, Badge, Banner, Button, ConfirmSheet, ErrorView, Field, Itinerary, ItineraryDocument, Loading, PosterCard, Row, Screen, Segmented,
-  palette, shareText, Sheet, space, T, toast, toastError,
+  api, ApiError, Badge, Banner, Button, Chip, ConfirmSheet, ErrorView, Field, Itinerary, ItineraryDocument, LANGUAGES, Loading, PosterCard, Row, Screen, Segmented,
+  palette, shareText, Sheet, space, T, toast, toastError, useLang, VoiceButton,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -16,10 +16,20 @@ export default function ItineraryScreen() {
   const [reviseOpen, setReviseOpen] = useState(false);
   const [instructions, setInstructions] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Captains read their itinerary in their own language; the traveler always gets English.
+  const lang = useLang((s) => s.lang);
+  const [showEnglish, setShowEnglish] = useState(false);
   const q = useQuery({
     queryKey: ["itinerary", id],
     queryFn: () => api.get<Itinerary & { error: string; requests: string; booking_code: string | null; edited_by_hand: boolean }>(`/captain/itineraries/${id}/`),
     refetchInterval: (query) => (query.state.data?.status === "generating" ? 3000 : false),
+  });
+  const local = lang !== "en" && !showEnglish;
+  const translated = useQuery({
+    queryKey: ["itinerary-translated", id, lang, q.data?.updated_at],
+    queryFn: () => api.get<{ content: Itinerary["content"]; poster: Itinerary["poster"] }>(`/captain/itineraries/${id}/translated/`, { lang }),
+    enabled: local && q.data?.status === "ready",
+    staleTime: Infinity,
   });
   const done = (it: Itinerary) => {
     qc.setQueryData(["itinerary", id], it);
@@ -109,13 +119,35 @@ export default function ItineraryScreen() {
                 onPress={() => shareText(`${it.title} — my itinerary on GoLoc: ${tab === "poster" ? it.poster_url : it.share_url}`)} />
             ) : null}
           </Row>
-          {tab === "poster" ? <PosterCard poster={it.poster} it={it} /> : <ItineraryDocument it={it} content={it.content} />}
+          {lang !== "en" ? (
+            <Row gap={8} style={{ marginBottom: space.md }}>
+              <Chip label={LANGUAGES.find((l) => l.code === lang)?.native ?? "My language"} active={!showEnglish} onPress={() => setShowEnglish(false)} />
+              <Chip label="English (traveler sees this)" active={showEnglish} onPress={() => setShowEnglish(true)} />
+            </Row>
+          ) : null}
+          {local && translated.isLoading ? (
+            <View style={{ alignItems: "center", paddingVertical: space.xl, gap: space.sm }}>
+              <ActivityIndicator />
+              <T variant="caption">Changing to your language…</T>
+            </View>
+          ) : local && translated.isError ? (
+            <Banner tone="warning" icon="language" title="Showing English for now" body="Couldn't change to your language right now.">
+              <Button title="Try again" small onPress={() => translated.refetch()} style={{ marginTop: space.sm, alignSelf: "flex-start" }} />
+            </Banner>
+          ) : null}
+          {local && translated.isLoading ? null : (() => {
+            const view = local && translated.data ? translated.data : { content: it.content, poster: it.poster };
+            return tab === "poster" ? <PosterCard poster={view.poster} it={it} /> : <ItineraryDocument it={it} content={view.content} />;
+          })()}
           <Button title="Delete itinerary" kind="ghost" onPress={() => setConfirmDelete(true)} style={{ marginTop: space.lg }} />
         </>
       )}
 
       <Sheet visible={reviseOpen} onClose={() => setReviseOpen(false)} title="Edit the whole itinerary with AI">
-        <T variant="caption" style={{ marginBottom: space.md }}>Say what to change. Your hand edits and hotel names are kept.</T>
+        <T variant="caption" style={{ marginBottom: space.md }}>Say what to change, in any language. Your hand edits and hotel names are kept.</T>
+        <VoiceButton onText={(x) => setInstructions((cur) => (cur.trim() ? `${cur.trim()}
+${x}` : x))} />
+        <View style={{ height: space.md }} />
         <Field multiline value={instructions} onChangeText={setInstructions} maxLength={2000} autoFocus
           placeholder={"Make day 3 slower, add a cooking class\nSwap dinner on day 2 for a rooftop place\nTraveler lands at 18:00 instead"} />
         {generate.error ? <T variant="small" color={palette.coral}>{(generate.error as ApiError).message}</T> : null}

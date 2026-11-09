@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Button, Card, Chip, DateRangeCalendar, dateRange, Empty, ErrorView, longDate, palette, radius, Row, Segmented, Sheet, SkeletonList, space, T, titleCase, useWide,
+  Button, Chip, DateRangeCalendar, dateRange, Empty, ErrorView, fonts, longDate, palette, radius, Row, Segmented, shadow, Sheet, SkeletonList, space, T, titleCase, useWide,
 } from "@goloc/core";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -31,8 +31,8 @@ const NO_FILTERS: Filters = { guests: "", min_rating: "", min_trips: "", min_exp
 
 function Choice({ title, options, value, onChange }: { title: string; options: readonly (readonly [string, string])[]; value: string; onChange: (v: string) => void }) {
   return (
-    <View style={{ marginBottom: space.lg }}>
-      <T variant="label" style={{ marginBottom: 8 }}>{title}</T>
+    <View style={{ marginBottom: space.xl }}>
+      <T variant="label" style={{ marginBottom: 10 }}>{title}</T>
       <View style={styles.wrap}>
         {options.map(([v, l]) => <Chip key={l} label={l} active={value === v} onPress={() => onChange(v)} />)}
       </View>
@@ -59,6 +59,7 @@ export default function Explore() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [draft, setDraft] = useState<Filters>(NO_FILTERS);
   const [sheet, setSheet] = useState(false);
+  const [datesOpen, setDatesOpen] = useState(false);
 
   useEffect(() => setCategory(params.category ?? ""), [params.category]);
   useEffect(() => {
@@ -85,52 +86,44 @@ export default function Explore() {
   const freeLabel = start ? (end && end !== start ? `Free ${dateRange(start, end)}` : `Free on ${longDate(start)}`) : undefined;
 
   const header = (
-    <View style={{ gap: space.md, paddingBottom: space.sm }}>
-      <View>
-        <T variant="title">Find locals</T>
-        <T variant="caption">Search by name, city or trip · verified locals with clear prices</T>
+    <View style={{ paddingBottom: space.lg }}>
+      <T variant="display">Find a local</T>
+      <T variant="caption" style={{ marginTop: 4 }}>
+        {type === "guide"
+          ? "Guides walk with you. You plan your own stay and travel."
+          : type === "captain"
+            ? "Captains handle everything: stay, meals, transport and guiding."
+            : "Verified locals with clear prices."}
+      </T>
+
+      <View style={[styles.search, { marginTop: space.xl }]}>
+        <Ionicons name="search" size={19} color={palette.muted} />
+        <TextInput value={q} onChangeText={setQ} placeholder="Name, city, trip or GLAC-ID" placeholderTextColor={palette.muted} style={styles.input} autoCapitalize="none" returnKeyType="search" />
+        {q ? <Ionicons name="close-circle" size={18} color={palette.muted} onPress={() => setQ("")} /> : null}
       </View>
-      <View>
+
+      <View style={{ marginTop: space.lg }}>
         <Segmented
           options={[{ value: "", label: "All" }, { value: "captain", label: "Captains" }, { value: "guide", label: "Guides" }]}
           value={type}
           onChange={setType}
         />
-        <T variant="caption" style={{ marginTop: 6 }}>
-          {type === "guide"
-            ? "A guide walks with you in person and shows you where to go, what to see and how to get around. You plan your own stay and travel."
-            : type === "captain"
-              ? "A Captain does everything: stays, meals, transport and permits, plus guiding."
-              : "Captains handle everything. Guides walk with you while you plan the rest."}
-        </T>
-      </View>
-      <View style={styles.search}>
-        <Ionicons name="search" size={18} color={palette.muted} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Name, city, trip or GLAC-ID" placeholderTextColor={palette.muted} style={styles.input} autoCapitalize="none" returnKeyType="search" />
-        {q ? <Ionicons name="close-circle" size={18} color={palette.muted} onPress={() => setQ("")} /> : null}
       </View>
 
-      <Card>
-        <Row style={{ justifyContent: "space-between", marginBottom: space.sm }}>
-          <T variant="bodyBold">When are you visiting?</T>
-          {start ? <Pressable hitSlop={8} onPress={() => { setStart(undefined); setEnd(undefined); }}><T variant="small" color={palette.rickshaw}>Any dates</T></Pressable> : null}
-        </Row>
-        <DateRangeCalendar start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} maxSpan={60} />
-        {start ? <T variant="caption" style={{ marginTop: 6 }}>Showing only {noun}s free on every day you're there.</T> : null}
-      </Card>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        <Chip label="All cities" icon="earth" active={!city} onPress={() => setCity("")} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipRow}>
+        <Chip label={when || "Any dates"} icon="calendar-outline" active={!!start} onPress={() => setDatesOpen(true)} />
+        <Chip label={activeFilters ? `Filters · ${activeFilters}` : "Filters"} icon="options-outline" active={!!activeFilters} onPress={() => { setDraft(filters); setSheet(true); }} />
+        <Chip label="All cities" active={!city} onPress={() => setCity("")} />
         {(cities.data ?? []).map((c) => <Chip key={c.id} label={c.name} active={city === c.slug} onPress={() => setCity(city === c.slug ? "" : c.slug)} />)}
       </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        <Chip label={activeFilters ? `Filters · ${activeFilters}` : "Filters"} icon="options" active={!!activeFilters} onPress={() => { setDraft(filters); setSheet(true); }} />
-        <Chip label="Packages" icon="bed" active={kind === "package"} onPress={() => setKind(kind === "package" ? "" : "package")} />
-        <Chip label="Day trips" icon="sunny" active={kind === "experience"} onPress={() => setKind(kind === "experience" ? "" : "experience")} />
-        <Chip label="Guide by day" icon="walk" active={kind === "guide"} onPress={() => setKind(kind === "guide" ? "" : "guide")} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={{ marginTop: space.sm, marginHorizontal: -space.xl }}>
+        <Chip label="Packages" active={kind === "package"} onPress={() => setKind(kind === "package" ? "" : "package")} />
+        <Chip label="Day trips" active={kind === "experience"} onPress={() => setKind(kind === "experience" ? "" : "experience")} />
+        <Chip label="Guide by day" active={kind === "guide"} onPress={() => setKind(kind === "guide" ? "" : "guide")} />
         {CATEGORIES.map((c) => <Chip key={c} label={titleCase(c)} active={category === c} onPress={() => setCategory(category === c ? "" : c)} />)}
       </ScrollView>
-      <T variant="caption">
+
+      <T variant="caption" style={{ marginTop: space.xl }}>
         {res.data?.count ?? rows.length} {noun}{(res.data?.count ?? rows.length) === 1 ? "" : "s"}
         {cityName ? ` in ${cityName}` : " across all cities"}
         {when ? ` · free ${when}` : ""}
@@ -142,7 +135,7 @@ export default function Explore() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
       {res.error && !res.data ? (
-        <View style={{ flex: 1, padding: space.lg }}>
+        <View style={{ flex: 1, padding: space.xl }}>
           {header}
           <ErrorView error={res.error} onRetry={res.refetch} />
         </View>
@@ -152,8 +145,8 @@ export default function Explore() {
           data={res.isLoading ? [] : rows}
           keyExtractor={(c) => c.id}
           numColumns={wide ? 2 : 1}
-          columnWrapperStyle={wide ? { gap: 10 } : undefined}
-          contentContainerStyle={{ padding: space.lg, paddingTop: space.sm, gap: 10, paddingBottom: compare.ids.length ? 120 : 40 }}
+          columnWrapperStyle={wide ? { gap: space.lg } : undefined}
+          contentContainerStyle={{ padding: space.xl, paddingTop: space.lg, gap: space.lg, paddingBottom: compare.ids.length ? 120 : 48 }}
           keyboardShouldPersistTaps="handled"
           onRefresh={res.refetch}
           refreshing={res.isRefetching}
@@ -193,6 +186,15 @@ export default function Explore() {
         </View>
       ) : null}
 
+      <Sheet visible={datesOpen} onClose={() => setDatesOpen(false)} title="When are you visiting?">
+        <T variant="caption" style={{ marginBottom: space.md }}>We'll show only {noun}s free on every day you're there.</T>
+        <DateRangeCalendar start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} maxSpan={60} />
+        <Row gap={10} style={{ marginTop: space.lg }}>
+          <Button title="Any dates" kind="secondary" style={{ flex: 1 }} onPress={() => { setStart(undefined); setEnd(undefined); setDatesOpen(false); }} />
+          <Button title="Done" style={{ flex: 2 }} onPress={() => setDatesOpen(false)} />
+        </Row>
+      </Sheet>
+
       <Sheet visible={sheet} onClose={() => setSheet(false)} title="Filters">
         <ScrollView style={{ maxHeight: 520 }}>
           <Choice title="Group size" options={GROUPS} value={draft.guests} onChange={(guests) => setDraft({ ...draft, guests })} />
@@ -219,9 +221,10 @@ export default function Explore() {
 }
 
 const styles = StyleSheet.create({
-  search: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: palette.white, borderRadius: radius.md, paddingHorizontal: space.md, height: 48, borderWidth: 1, borderColor: palette.line },
-  input: { flex: 1, fontSize: 15, color: palette.ink },
-  chips: { gap: 8 },
+  search: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: palette.paper, borderRadius: radius.pill, paddingHorizontal: space.xl, height: 56, ...shadow },
+  input: { flex: 1, fontSize: 15, color: palette.ink, fontFamily: fonts.body },
+  chipRow: { marginTop: space.xl, marginHorizontal: -space.xl },
+  chips: { gap: 8, paddingHorizontal: space.xl },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tray: { position: "absolute", left: space.lg, right: space.lg, bottom: space.lg, backgroundColor: palette.ink, borderRadius: radius.lg, padding: space.md, flexDirection: "row", alignItems: "center", gap: 8 },
+  tray: { position: "absolute", left: space.xl, right: space.xl, bottom: space.lg, backgroundColor: palette.night, borderRadius: radius.xl, padding: space.md, paddingLeft: space.lg, flexDirection: "row", alignItems: "center", gap: 8, ...shadow },
 });

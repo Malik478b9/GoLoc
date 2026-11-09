@@ -39,6 +39,15 @@ class User(AbstractUser):
         "cities.City", null=True, blank=True, on_delete=models.SET_NULL, related_name="users",
         help_text="City the person last chose in the app.",
     )
+    # Exactly where the traveler is exploring from: any place in India (village, town,
+    # district, state, landmark). `city` is then the nearest GoLoc city to it.
+    language = models.CharField(max_length=5, default="en", help_text="App language the person chose (en, hi, te…).")
+    place_name = models.CharField(max_length=150, blank=True)
+    place_kind = models.CharField(max_length=40, blank=True)
+    place_area = models.CharField(max_length=150, blank=True, help_text="District / mandal / city it sits in.")
+    place_state = models.CharField(max_length=100, blank=True)
+    place_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    place_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()

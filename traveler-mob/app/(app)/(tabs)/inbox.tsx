@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function Inbox() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
-      <View style={{ paddingHorizontal: space.lg, paddingVertical: space.sm }}>
-        <T variant="title">Messages</T>
+      <View style={{ paddingHorizontal: space.xl, paddingTop: space.lg, paddingBottom: space.md }}>
+        <T variant="display">Messages</T>
       </View>
       <ConversationList emptyBody="Message a Captain from their profile to plan your trip." />
     </SafeAreaView>

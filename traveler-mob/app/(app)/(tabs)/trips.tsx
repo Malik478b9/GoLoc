@@ -20,8 +20,8 @@ export default function Trips() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.sand }} edges={["top"]}>
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.md }}>
-        <T variant="title">My trips</T>
+      <View style={{ paddingHorizontal: space.xl, paddingTop: space.lg, gap: space.xl }}>
+        <T variant="display">My trips</T>
         <Segmented
           value={tab}
           onChange={setTab}
@@ -33,7 +33,7 @@ export default function Trips() {
         />
       </View>
       {q.isLoading ? (
-        <View style={{ padding: space.lg }}><SkeletonList /></View>
+        <View style={{ padding: space.xl }}><SkeletonList /></View>
       ) : q.error ? (
         <ErrorView error={q.error} onRetry={q.refetch} />
       ) : (
@@ -41,7 +41,7 @@ export default function Trips() {
           data={q.data?.results ?? []}
           keyExtractor={(b) => b.id}
           renderItem={({ item }) => <BookingRow b={item} />}
-          contentContainerStyle={{ padding: space.lg, gap: space.md }}
+          contentContainerStyle={{ padding: space.xl, gap: space.lg, paddingBottom: 48 }}
           onRefresh={q.refetch}
           refreshing={q.isRefetching}
           ListEmptyComponent={

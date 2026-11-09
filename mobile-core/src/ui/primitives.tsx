@@ -21,6 +21,7 @@ import {
 import type { BookingStatus } from "../api/types";
 import { initials, STATUS_STYLE } from "../format";
 import { fonts, palette, radius, shadow, space } from "../theme";
+import { useTx } from "../i18n";
 import { useAccent } from "./accent";
 import { Pressy } from "./motion";
 
@@ -45,8 +46,10 @@ const TEXT: Record<Variant, TextStyle> = {
   small: { fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 17, color: palette.ink2 },
 };
 
-export function T({ variant = "body", style, color, center, ...rest }: TextProps & { variant?: Variant; color?: string; center?: boolean }) {
-  return <Text {...rest} style={[TEXT[variant], color ? { color } : null, center && { textAlign: "center" }, style]} />;
+export function T({ variant = "body", style, color, center, children, ...rest }: TextProps & { variant?: Variant; color?: string; center?: boolean }) {
+  // Plain English text is shown in the person's chosen language when we have it.
+  const tx = useTx();
+  return <Text {...rest} style={[TEXT[variant], color ? { color } : null, center && { textAlign: "center" }, style]}>{tx(children)}</Text>;
 }
 
 // ---------------------------------------------------------------- layout
@@ -88,6 +91,7 @@ export function Button({
   haptic?: boolean;
 }) {
   const accent = useAccent();
+  const tx = useTx();
   const bg = { primary: accent.main, secondary: palette.white, ghost: "transparent", danger: palette.coral, dark: palette.night }[kind];
   const fg = { primary: accent.onMain, secondary: palette.ink, ghost: accent.main, danger: palette.white, dark: palette.white }[kind];
   const off = disabled || loading;
@@ -119,7 +123,7 @@ export function Button({
       ) : (
         <Row gap={7} style={{ justifyContent: "center" }}>
           {icon && <Ionicons name={icon} size={small ? 15 : 18} color={fg} />}
-          <Text style={[styles.btnText, small && { fontSize: 13 }, { color: fg }]}>{title}</Text>
+          <Text style={[styles.btnText, small && { fontSize: 13 }, { color: fg }]}>{tx(title)}</Text>
         </Row>
       )}
     </Pressy>
@@ -151,22 +155,24 @@ export function IconButton({
 // ---------------------------------------------------------------- chips & badges
 export function Chip({ label, active, onPress, icon }: { label: string; active?: boolean; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap }) {
   const accent = useAccent();
+  const tx = useTx();
   return (
     <Pressy onPress={onPress} haptic scaleTo={0.93} style={[styles.chip, active && { borderColor: "transparent" }]}>
       {active ? <LinearGradient colors={accent.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: radius.pill }]} /> : null}
       <Row gap={5}>
         {icon && <Ionicons name={icon} size={14} color={active ? accent.onMain : palette.ink2} />}
-        <Text style={[styles.chipText, active && { color: accent.onMain, fontFamily: fonts.bold }]}>{label}</Text>
+        <Text style={[styles.chipText, active && { color: accent.onMain, fontFamily: fonts.bold }]}>{tx(label)}</Text>
       </Row>
     </Pressy>
   );
 }
 
 export function Badge({ label, bg = palette.sand2, fg = palette.ink2, icon }: { label: string; bg?: string; fg?: string; icon?: keyof typeof Ionicons.glyphMap }) {
+  const tx = useTx();
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
       {icon && <Ionicons name={icon} size={11} color={fg} />}
-      <Text style={[styles.badgeText, { color: fg }]}>{label}</Text>
+      <Text style={[styles.badgeText, { color: fg }]}>{tx(label)}</Text>
     </View>
   );
 }
@@ -250,29 +256,29 @@ export function ListItem({
         {subtitle ? <T variant="caption" numberOfLines={2}>{subtitle}</T> : null}
       </View>
       {right ?? (onPress ? (
-        <View style={styles.listChevron}><Ionicons name="chevron-forward" size={15} color={palette.ink2} /></View>
+        <View style={styles.listChevron}><Ionicons name="chevron-forward" size={17} color={palette.muted} /></View>
       ) : null)}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.paper, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.line, ...shadow },
+  card: { backgroundColor: palette.paper, borderRadius: radius.xl, ...shadow },
   btn: { minHeight: 54, borderRadius: radius.md, paddingHorizontal: space.xl, alignItems: "center", justifyContent: "center", overflow: "visible" },
   btnSmall: { minHeight: 40, paddingHorizontal: space.md, borderRadius: radius.sm },
-  btnSecondary: { borderWidth: 1, borderColor: palette.lineStrong, ...shadow, shadowOpacity: 0.04 },
+  btnSecondary: { borderWidth: 1, borderColor: palette.lineStrong },
   btnText: { fontFamily: fonts.bold, fontSize: 15, letterSpacing: 0.1 },
   iconBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   iconBtnLift: { ...shadow, shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   badgeDot: { position: "absolute", top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: palette.coral, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 2, borderColor: palette.white },
   badgeDotText: { color: palette.white, fontSize: 9.5, fontFamily: fonts.bold },
-  chip: { paddingHorizontal: 15, paddingVertical: 9, borderRadius: radius.pill, backgroundColor: palette.white, borderWidth: 1, borderColor: palette.line, overflow: "hidden" },
+  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: palette.white, borderWidth: 1, borderColor: palette.line, overflow: "hidden" },
   chipText: { fontFamily: fonts.medium, fontSize: 13, color: palette.ink2 },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, alignSelf: "flex-start" },
   badgeText: { fontFamily: fonts.bold, fontSize: 11 },
   verified: { position: "absolute", right: -2, bottom: -2, backgroundColor: palette.success, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: palette.paper },
-  stat: { flex: 1, minWidth: 140, backgroundColor: palette.paper, borderRadius: radius.lg, padding: space.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: palette.line, ...shadow, shadowOpacity: 0.04 },
-  listItem: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: 14, paddingHorizontal: space.lg },
+  stat: { flex: 1, minWidth: 140, backgroundColor: palette.paper, borderRadius: radius.lg, padding: space.lg, ...shadow },
+  listItem: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: 16, paddingHorizontal: space.lg },
   listIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  listChevron: { width: 28, height: 28, borderRadius: 14, backgroundColor: palette.sand, alignItems: "center", justifyContent: "center" },
+  listChevron: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
 });

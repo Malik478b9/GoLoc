@@ -85,3 +85,31 @@ SEASON_LABEL = {"winter": "Winter", "summer": "Summer", "monsoon": "Monsoon", "a
 MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
                "November", "December"]
+
+# The home screen's headline: one line per season, rotated week by week.
+SEASON_QUOTES = {
+    "winter": [
+        "Winter is when India slows down and glows",
+        "Chase the mist, keep the chai close",
+        "Cold mornings, warm courtyards, long roads",
+        "The mountains are quiet. Go listen.",
+    ],
+    "summer": [
+        "Head for the hills, leave the heat behind",
+        "Summer belongs to cool rivers and high roads",
+        "Mango season, mountain air, early starts",
+        "Find your shade somewhere new",
+    ],
+    "monsoon": [
+        "Let the rain show you a greener India",
+        "Waterfalls are full and the ghats are green",
+        "Every road looks better after the rain",
+        "Monsoon is a season to be out in",
+    ],
+    "autumn": [
+        "Lamps on the ghats, festivals in the lanes",
+        "Clear skies, cool evenings, old forts",
+        "The season of lights is calling",
+        "Golden light, festive streets, open roads",
+    ],
+}

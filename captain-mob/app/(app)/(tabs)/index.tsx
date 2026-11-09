@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   api, Appear, Avatar, Banner, Booking, Button, Card, dateRange, Empty, ErrorView, Float, fonts, gradients, LinearGradient, Loading, money, motion,
   palette, Pressy, Pulse, radius, Rating, Row, Section, shadow, space, StatusBadge, T, time12, timeLeft, toast, toastError, useUnreadCount,
+  useT,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -13,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useAgency, useDashboard, useProfile, useRefreshBusiness } from "../../../lib/data";
 
 function TripCard({ b }: { b: Booking }) {
+  const t = useT();
   return (
     <Pressy onPress={() => router.push(`/booking/${b.id}`)} scaleTo={0.98}>
       <LinearGradient colors={gradients.night as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.trip}>
@@ -25,7 +27,7 @@ function TripCard({ b }: { b: Booking }) {
         <View style={{ gap: 6, marginTop: space.md }}>
           {([
             ["calendar", `${dateRange(b.start_date, b.end_date)} · ${time12(b.start_time)}`],
-            ["person", `${b.traveler.name} · ${b.guests} guest${b.guests > 1 ? "s" : ""}`],
+            ["person", `${b.traveler.name} · ${t("{n} guests", { n: b.guests })}`],
           ] as const).map(([icon, text]) => (
             <Row key={icon} gap={8}>
               <Ionicons name={icon} size={14} color="rgba(255,255,255,0.6)" />
@@ -63,6 +65,7 @@ function LiveToggle({ live, disabled, busy, onChange }: { live: boolean; disable
 }
 
 export default function Business() {
+  const t = useT();
   const insets = useSafeAreaInsets();
   const profile = useProfile();
   const dash = useDashboard();
@@ -155,7 +158,7 @@ export default function Business() {
           <Appear i={1}>
             <T variant="label" color={palette.marigold} style={{ marginTop: space.xl }}>Earned this month</T>
             <T style={styles.bigMoney}>{d ? money(d.wallet.this_month) : "—"}</T>
-            {d ? <T variant="small" color="rgba(255,255,255,0.7)">{money(d.wallet.pending_trips)} more on upcoming trips</T> : null}
+            {d ? <T variant="small" color="rgba(255,255,255,0.7)">{t("{amount} more on upcoming trips", { amount: money(d.wallet.pending_trips) })}</T> : null}
           </Appear>
 
           <Appear i={2} style={[styles.liveCard, p.is_live && styles.liveCardOn]}>
@@ -178,9 +181,9 @@ export default function Business() {
             <View style={styles.statsGrid}>
               {([
                 ["wallet", "Wallet", money(d.wallet.available), "Ready to withdraw", gradients.traveler, () => router.push("/earnings")],
-                ["star", "Rating", Number(p.rating_avg) > 0 ? Number(p.rating_avg).toFixed(1) : "New", `${p.trips_completed} trips done`, gradients.sunset, () => router.push("/reviews")],
-                ["eye", "Profile views", String(p.profile_views), `${d.reel_views} reel views`, ["#0B63E0", "#0047B6"] as const, () => router.push("/content")],
-                ["calendar", "Upcoming", String(d.upcoming_count), d.pending_count ? `${d.pending_count} waiting for you` : "All caught up", gradients.captain, () => router.push("/bookings")],
+                ["star", "Rating", Number(p.rating_avg) > 0 ? Number(p.rating_avg).toFixed(1) : "New", t("{n} trips done", { n: p.trips_completed }), gradients.sunset, () => router.push("/reviews")],
+                ["eye", "Profile views", String(p.profile_views), t("{n} reel views", { n: d.reel_views }), ["#0B63E0", "#0047B6"] as const, () => router.push("/content")],
+                ["calendar", "Upcoming", String(d.upcoming_count), d.pending_count ? t("{n} waiting for you", { n: d.pending_count }) : "All caught up", gradients.captain, () => router.push("/bookings")],
               ] as const).map(([icon, label, value, hint, colors, go], i) => (
                 <Appear key={label} i={3 + i} style={styles.statCell}>
                   <Pressy onPress={go} scaleTo={0.96} style={styles.statTile}>
@@ -198,7 +201,7 @@ export default function Business() {
 
           <View style={{ gap: space.md, marginTop: space.lg }}>
             {invite && !p.agency ? (
-              <Banner tone="info" icon="business" title={`${invite.agency.name} invited you`} body="Join their team: they set your trips and prices, give you a car and pay you directly.">
+              <Banner tone="info" icon="business" title={t("{name} invited you", { name: invite.agency.name })} body="Join their team: they set your trips and prices, give you a car and pay you directly.">
                 <Button title="View invite" small kind="secondary" onPress={() => router.push("/agency")} style={{ marginTop: space.sm, alignSelf: "flex-start" }} />
               </Banner>
             ) : null}
@@ -228,7 +231,7 @@ export default function Business() {
           {d ? (
             <>
               {d.pending_count ? (
-                <Section title={`New requests · ${d.pending_count}`} action="Review" onAction={() => router.push("/bookings")}>
+                <Section title={t("New requests · {n}", { n: d.pending_count })} action="Review" onAction={() => router.push("/bookings")}>
                   <View style={{ gap: 12 }}>
                     {d.pending_requests.map((b, i) => (
                       <Appear key={b.id} i={i}>
@@ -252,7 +255,7 @@ export default function Business() {
                 </Section>
               ) : null}
 
-              <Section title={next ? "Next trip" : "Upcoming"} action={d.upcoming_count > 1 ? `All ${d.upcoming_count}` : undefined} onAction={() => router.push("/bookings")}>
+              <Section title={next ? "Next trip" : "Upcoming"} action={d.upcoming_count > 1 ? t("All {n}", { n: d.upcoming_count }) : undefined} onAction={() => router.push("/bookings")}>
                 {next ? (
                   <View style={{ gap: 12 }}>
                     <Appear><TripCard b={next} /></Appear>

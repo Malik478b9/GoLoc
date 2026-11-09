@@ -1,6 +1,6 @@
-import { Avatar, Badge, Card, Divider, ListItem, palette, Screen, space, T, useAuth, BrandMark } from "@goloc/core";
+import { Avatar, Badge, Card, Divider, LanguageGrid, LANGUAGES, ListItem, palette, Screen, Sheet, space, T, useAuth, useLang, BrandMark } from "@goloc/core";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { View } from "react-native";
 
 import { useAgency, useProfile } from "../../../lib/data";
@@ -12,6 +12,8 @@ export default function Account() {
   const p = profile.data;
   const agency = p?.agency;
   const invites = membership.data?.invites.length ?? 0;
+  const lang = useLang((s) => s.lang);
+  const [langOpen, setLangOpen] = useState(false);
   return (
     <Screen back={false} title="Account" onRefresh={profile.refetch}>
       <Card style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
@@ -22,6 +24,13 @@ export default function Account() {
         </View>
         {p ? <Badge label={p.review_status === "approved" ? "Verified" : p.review_status === "pending" ? "In review" : "Setup"} bg={p.review_status === "approved" ? palette.successSoft : palette.warningSoft} fg={p.review_status === "approved" ? palette.success : palette.warning} /> : null}
       </Card>
+
+      <Card padded={false} style={{ overflow: "hidden", marginTop: space.lg }}>
+        <ListItem icon="language-outline" title="Language" subtitle={LANGUAGES.find((l) => l.code === lang)?.native} onPress={() => setLangOpen(true)} />
+      </Card>
+      <Sheet visible={langOpen} onClose={() => setLangOpen(false)} title="Choose your language">
+        <LanguageGrid onPick={() => setLangOpen(false)} />
+      </Sheet>
 
       <T variant="label" style={{ marginTop: space.xl, marginBottom: space.sm }}>Business setup</T>
       <Card padded={false} style={{ overflow: "hidden" }}>

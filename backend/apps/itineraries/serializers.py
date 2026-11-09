@@ -87,6 +87,8 @@ class ItinerarySerializer(ItineraryPublicSerializer):
             out[k] = [str(i).strip()[:160] for i in items if str(i).strip()][:30]
         for k in TEXT_INPUTS:
             out[k] = str(value.get(k, "")).strip()[:500]
+        # The Captain's own description of the trip, spoken or typed, in any language.
+        out["brief"] = str(value.get("brief", "")).strip()[:3000]
         return out
 
     def validate_content(self, value):

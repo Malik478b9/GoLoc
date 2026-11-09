@@ -163,6 +163,7 @@ REST_FRAMEWORK = {
         "otp_request": config("THROTTLE_OTP_REQUEST", default="30/hour"),
         "otp_verify": config("THROTTLE_OTP_VERIFY", default="60/hour"),
         "location": config("THROTTLE_LOCATION", default="30/min"),
+        "places": config("THROTTLE_PLACES", default="90/min"),
         "chat": config("THROTTLE_CHAT", default="40/min"),
         "upload": config("THROTTLE_UPLOAD", default="30/hour"),
         "booking_request": config("THROTTLE_BOOKING_REQUEST", default="20/hour"),

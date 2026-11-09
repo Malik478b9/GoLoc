@@ -74,7 +74,8 @@
           "color": "#0B8FC9",
           "icon": "./assets/notification-icon.png"
         }
-      ]
+      ],
+      ["expo-audio", { "microphonePermission": "GoLoc uses the microphone so you can speak instead of typing." }]
     ],
     "experiments": {
       "typedRoutes": false

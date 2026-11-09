@@ -3,6 +3,7 @@ import React, { forwardRef, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, TextInputProps, View } from "react-native";
 
 import { addDays, isoDate, longDate, shortDate, tripDays } from "../format";
+import { useTx } from "../i18n";
 import { fonts, palette, radius, space } from "../theme";
 import { Sheet } from "./feedback";
 import { Row, T, useAccent } from "./primitives";
@@ -10,7 +11,8 @@ import { Row, T, useAccent } from "./primitives";
 export type FieldProps = TextInputProps & { label?: string; error?: string; hint?: string; prefix?: string; labelRight?: React.ReactNode };
 
 export const Field = forwardRef<React.ComponentRef<typeof TextInput>, FieldProps>(
-  function Field({ label, error, hint, prefix, style, multiline, labelRight, ...rest }, ref) {
+  function Field({ label, error, hint, prefix, style, multiline, labelRight, placeholder, ...rest }, ref) {
+    const tx = useTx();
     const [focused, setFocused] = useState(false);
     const accent = useAccent();
     return (
@@ -26,6 +28,7 @@ export const Field = forwardRef<React.ComponentRef<typeof TextInput>, FieldProps
           <TextInput
             ref={ref}
             placeholderTextColor={palette.muted}
+            placeholder={tx(placeholder)}
             onFocus={(e) => {
               setFocused(true);
               rest.onFocus?.(e);
@@ -65,6 +68,7 @@ export function Stepper({ value, onChange, min = 1, max = 20, label }: { value: 
 }
 
 export function Segmented<V extends string>({ options, value, onChange }: { options: { value: V; label: string; count?: number }[]; value: V; onChange: (v: V) => void }) {
+  const tx = useTx();
   return (
     <View style={styles.seg}>
       {options.map((o) => {
@@ -72,7 +76,7 @@ export function Segmented<V extends string>({ options, value, onChange }: { opti
         return (
           <Pressable key={o.value} onPress={() => onChange(o.value)} style={[styles.segItem, active && styles.segActive]}>
             <Text style={[styles.segText, active && { color: palette.ink }]}>
-              {o.label}
+              {tx(o.label)}
               {o.count ? ` · ${o.count}` : ""}
             </Text>
           </Pressable>
@@ -304,8 +308,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 54, fontFamily: fonts.body, fontSize: 16, color: palette.ink },
   prefix: { fontFamily: fonts.bold, fontSize: 16, color: palette.ink2, marginRight: 6 },
   stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  seg: { flexDirection: "row", backgroundColor: palette.sand2, borderRadius: radius.md, padding: 4 },
-  segItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 12 },
+  seg: { flexDirection: "row", backgroundColor: palette.sand2, borderRadius: radius.pill, padding: 4 },
+  segItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: radius.pill },
   segActive: { backgroundColor: palette.white, shadowColor: palette.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   segText: { fontFamily: fonts.bold, fontSize: 13, color: palette.muted },
   grid: { flexDirection: "row", flexWrap: "wrap" },

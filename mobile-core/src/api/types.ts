@@ -11,7 +11,15 @@ export type User = {
   email: string;
   role: "traveler" | "captain" | "admin";
   city: City | null;
+  /** Where a traveler is exploring from: any place in India. `city` is the nearest GoLoc city to it. */
+  place?: UserPlace | null;
+  /** App language the person chose: en, hi, te, ta, kn, ml, mr, bn, gu. */
+  language?: string;
 };
+
+/** A place anywhere in India (state, district, mandal, town, village, landmark). */
+export type Place = { id: string; name: string; kind: string; area: string; state: string; label: string; lat: number; lng: number };
+export type UserPlace = { name: string; kind: string; area: string; state: string; lat: number | null; lng: number | null; nearest_city_km: number | null };
 
 export type ServiceKind = "experience" | "guide" | "package";
 /** captain = does everything (stays, transport, packages); guide = walks with travelers and shows the way. */

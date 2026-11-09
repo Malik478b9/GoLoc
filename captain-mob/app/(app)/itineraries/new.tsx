@@ -1,16 +1,21 @@
+import { Ionicons } from "@expo/vector-icons";
 import {
-  AIField, api, ApiError, Banner, BookingDetail, Button, Card, Chip, dateRange, DateRangeCalendar, Field, Itinerary, ItinerarySummary, Loading, palette, Row, Screen, Segmented, Service, space, Stepper, T, titleCase,
+  api, ApiError, Banner, BookingDetail, Button, Card, Chip, dateRange, DateRangeCalendar, Field, Itinerary, ItinerarySummary, Loading, palette, Pressy,
+  radius, Row, Screen, Segmented, Service, space, Stepper, T, titleCase, useT, VoiceButton, VoiceField,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { toLines, TRAVEL_MODES } from "../../../lib/itinerary";
 
 type Tier = "standard" | "normal" | "medium" | "lavish";
 type Leg = { mode: string; point: string; time: string; reference: string };
 const EMPTY_LEG: Leg = { mode: "", point: "", time: "", reference: "" };
+
+// Plain words for comfort levels; the server keeps its own names.
+const TIER_WORDS: Record<Tier, string> = { standard: "Day trip", normal: "Budget", medium: "Comfort", lavish: "Luxury" };
 
 function LegFields({ title, leg, onChange }: { title: string; leg: Leg; onChange: (l: Leg) => void }) {
   return (
@@ -28,9 +33,22 @@ function LegFields({ title, leg, onChange }: { title: string; leg: Leg; onChange
   );
 }
 
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <View style={{ marginTop: space.xl }}>
+      <Row gap={space.md} style={{ marginBottom: space.md }}>
+        <View style={styles.stepNo}><T variant="bodyBold" color={palette.white}>{n}</T></View>
+        <T variant="title" style={{ flex: 1 }}>{title}</T>
+      </Row>
+      {children}
+    </View>
+  );
+}
+
 export default function NewItinerary() {
   const params = useLocalSearchParams<{ kind?: "template" | "custom"; booking_id?: string; service_id?: string }>();
   const qc = useQueryClient();
+  const t = useT();
   const bookingId = params.booking_id;
   const [kind, setKind] = useState<"template" | "custom">(bookingId ? "custom" : params.kind ?? "template");
   const booking = useQuery({ queryKey: ["booking", bookingId], queryFn: () => api.get<BookingDetail>(`/bookings/${bookingId}/`), enabled: !!bookingId });
@@ -39,6 +57,8 @@ export default function NewItinerary() {
 
   const [serviceId, setServiceId] = useState<string | undefined>(params.service_id);
   const [basedOn, setBasedOn] = useState<string | undefined>();
+  const [brief, setBrief] = useState("");
+  const [more, setMore] = useState(false);
   const [title, setTitle] = useState("");
   const [destination, setDestination] = useState("");
   const [tier, setTier] = useState<Tier>("medium");
@@ -53,15 +73,15 @@ export default function NewItinerary() {
   const [avoid, setAvoid] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [meals, setMeals] = useState("");
-  const [notes, setNotes] = useState("");
   const [requests, setRequests] = useState("");
 
-  const service = (myServices.data ?? []).find((s) => s.id === serviceId);
+  const services = (myServices.data ?? []).filter((s) => s.is_active !== false);
+  const service = services.find((s) => s.id === serviceId);
   useEffect(() => {
     if (!service) return;
-    if (!title) setTitle(service.title);
+    setTitle(service.title);
     if (service.kind === "package") setDays(service.duration_days);
-    else setTier((t) => (t === "medium" ? "standard" : t));
+    else setTier((x) => (x === "medium" ? "standard" : x));
     if (!must && service.stops.length) setMust(service.stops.join("\n"));
   }, [service?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -81,7 +101,7 @@ export default function NewItinerary() {
         ...(destination.trim() ? { destination: destination.trim() } : {}),
         ...(basedOn ? { based_on_id: basedOn } : {}),
         arrival, departure, requests: requests.trim(),
-        inputs: { hotels: toLines(hotels), must_include: toLines(must), avoid: toLines(avoid), vehicle: vehicle.trim(), meals: meals.trim(), notes: notes.trim() },
+        inputs: { brief: brief.trim(), hotels: toLines(hotels), must_include: toLines(must), avoid: toLines(avoid), vehicle: vehicle.trim(), meals: meals.trim(), notes: "" },
       }),
     onSuccess: (it) => {
       qc.invalidateQueries({ queryKey: ["itineraries"] });
@@ -92,84 +112,103 @@ export default function NewItinerary() {
   if (bookingId && booking.isLoading) return <Loading />;
   const b = booking.data;
   const err = create.error as ApiError | null;
+  const needTitle = !bookingId && !service;
   const ready = bookingId ? true : !!title.trim() && (kind === "template" || (!!start && !!end));
   const tiers: Tier[] = service && service.kind !== "package" ? ["standard", "normal", "medium", "lavish"] : ["normal", "medium", "lavish"];
+  const readyTemplates = (templates.data ?? []).filter((x) => x.status === "ready");
+  let step = 0;
 
   return (
     <Screen
-      title={kind === "template" ? "New default itinerary" : "New custom itinerary"}
-      subtitle="You fill what you know. AI writes the rest."
-      footer={<Button title="Build with AI" icon="sparkles" disabled={!ready} loading={create.isPending} onPress={() => create.mutate()} />}
+      title="Make an itinerary"
+      subtitle="Speak about the trip. AI writes the full plan."
+      footer={<Button title="Make my itinerary" icon="sparkles" disabled={!ready} loading={create.isPending} onPress={() => create.mutate()} />}
     >
       {b ? (
-        <Banner tone="info" icon="person" title={`For ${b.traveler.name} · ${b.code}`} body={`${b.title} · ${dateRange(b.start_date, b.end_date)} · ${b.guests} guest${b.guests > 1 ? "s" : ""} · ${titleCase(b.tier)}`} />
+        <Banner tone="info" icon="person" title={`${t("For")} ${b.traveler.name} · ${b.code}`} body={`${b.title} · ${dateRange(b.start_date, b.end_date)} · ${b.guests} ${t("guests")}`} />
       ) : (
-        <Segmented options={[{ value: "template", label: "Default for a trip" }, { value: "custom", label: "Custom for a traveler" }]} value={kind} onChange={setKind} />
+        <Segmented options={[{ value: "template", label: "For my trip page" }, { value: "custom", label: "For one traveler" }]} value={kind} onChange={setKind} />
       )}
 
       {!bookingId ? (
-        <>
-          <T variant="h2" style={{ marginTop: space.lg, marginBottom: space.sm }}>Which trip?</T>
-          <Row gap={8} style={{ flexWrap: "wrap", marginBottom: space.md }}>
-            {(myServices.data ?? []).filter((s) => s.is_active !== false).map((s) => (
-              <Chip key={s.id} label={s.title} active={serviceId === s.id} onPress={() => setServiceId(serviceId === s.id ? undefined : s.id)} />
-            ))}
+        <Step n={++step} title="Which trip?">
+          <Row gap={8} style={{ flexWrap: "wrap" }}>
+            {services.map((s) => <Chip key={s.id} label={s.title} active={serviceId === s.id} onPress={() => setServiceId(serviceId === s.id ? undefined : s.id)} />)}
           </Row>
-          <Field label="Itinerary title" placeholder="e.g. Ladakh in 6 days" value={title} onChangeText={setTitle} maxLength={140} />
-        </>
-      ) : null}
-      <Field label="Places covered" placeholder="e.g. Leh · Nubra · Pangong" value={destination} onChangeText={setDestination} maxLength={200} hint={bookingId ? "Leave empty to use the trip's places." : undefined} />
-
-      {(templates.data ?? []).filter((t) => t.status === "ready").length && kind === "custom" ? (
-        <>
-          <T variant="h2" style={{ marginBottom: space.sm }}>Start from your default itinerary</T>
-          <Row gap={8} style={{ flexWrap: "wrap", marginBottom: space.md }}>
-            {templates.data!.filter((t) => t.status === "ready").map((t) => (
-              <Chip key={t.id} label={t.title} active={basedOn === t.id} onPress={() => setBasedOn(basedOn === t.id ? undefined : t.id)} />
-            ))}
-          </Row>
-          {bookingId && !basedOn ? <T variant="caption" style={{ marginTop: -6, marginBottom: space.md }}>Not picked: we use your default for this trip automatically if you have one.</T> : null}
-        </>
+          {needTitle ? <Field label="Trip name" placeholder="e.g. Ladakh in 6 days" value={title} onChangeText={setTitle} maxLength={140} style={{ marginTop: space.md }} /> : null}
+        </Step>
       ) : null}
 
       {!bookingId ? (
-        <>
-          <T variant="h2" style={{ marginBottom: space.sm }}>Comfort level</T>
-          <Row gap={8} style={{ marginBottom: space.md }}>
-            {tiers.map((t) => <Chip key={t} label={titleCase(t)} active={tier === t} onPress={() => setTier(t)} />)}
-          </Row>
-          <T variant="caption" style={{ marginTop: -6, marginBottom: space.md }}>
-            {tier === "lavish" ? "4–5★ or boutique stays, fine dining, private SUV, VIP tickets." : tier === "medium" ? "3★ hotels, good local restaurants, private AC cab." : tier === "normal" ? "Guesthouses or homestays, local eateries, shared or basic transport." : "A day experience or guide day with no stay."}
-          </T>
+        <Step n={++step} title={kind === "custom" ? "Traveler's dates" : "How many days?"}>
           {kind === "custom" ? (
-            <Card style={{ marginBottom: space.md }}>
-              <T variant="h2">Traveler's arrival and departure</T>
+            <Card>
               <T variant="caption" style={{ marginBottom: space.md }}>Tap the arrival day, then the departure day.</T>
               <DateRangeCalendar start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} />
             </Card>
           ) : (
-            <Card style={{ marginBottom: space.md }}><Stepper label="Days" value={days} onChange={setDays} min={1} max={30} /></Card>
+            <Card><Stepper label="Days" value={days} onChange={setDays} min={1} max={30} /></Card>
           )}
-          <Card style={{ marginBottom: space.md }}><Stepper label="Travelers" value={guests} onChange={setGuests} min={1} max={20} /></Card>
-        </>
+          <Card style={{ marginTop: space.md }}><Stepper label="Travelers" value={guests} onChange={setGuests} min={1} max={20} /></Card>
+          <Row gap={8} style={{ marginTop: space.md, flexWrap: "wrap" }}>
+            {tiers.map((x) => <Chip key={x} label={TIER_WORDS[x]} active={tier === x} onPress={() => setTier(x)} />)}
+          </Row>
+        </Step>
       ) : null}
 
-      <LegFields title="Arrival" leg={arrival} onChange={setArrival} />
-      <LegFields title="Departure" leg={departure} onChange={setDeparture} />
+      <Step n={++step} title="Tell us about the trip">
+        <T variant="body" style={{ marginBottom: space.md }}>
+          Speak like you would to a friend: which places, which hotel, what food, how fast or slow. Any language is fine.
+        </T>
+        <VoiceButton onText={(x) => setBrief((cur) => (cur.trim() ? `${cur.trim()}\n${x}` : x))} label="Tap and speak" />
+        <Field
+          multiline
+          value={brief}
+          onChangeText={setBrief}
+          maxLength={3000}
+          placeholder="Or type here. e.g. Day 1 pick up at airport, Golconda fort in the evening, stay at Hotel Sitara…"
+          style={{ marginTop: space.md, minHeight: 120 }}
+        />
+      </Step>
 
-      <T variant="title" style={{ marginTop: space.sm }}>Your details</T>
-      <T variant="caption" style={{ marginBottom: space.md }}>The AI keeps these exactly as you write them. Leave anything empty and it suggests something to fit the comfort level.</T>
-      <Field label="Hotels you use (one per line)" multiline placeholder={"Night 1–2: The Grand Dragon, Leh\nNight 3: Nubra Organic Retreat"} value={hotels} onChangeText={setHotels} />
-      <Field label="Must-include places (one per line)" multiline placeholder={"Pangong Lake\nKhardung La\nDiskit Monastery"} value={must} onChangeText={setMust} />
-      <Field label="Places to skip (one per line)" multiline value={avoid} onChangeText={setAvoid} />
-      <Field label="Vehicle" placeholder="e.g. Toyota Innova Crysta, AC" value={vehicle} onChangeText={setVehicle} maxLength={500} />
-      <Field label="Meals" placeholder="e.g. Pure veg, Jain options, breakfast at hotel" value={meals} onChangeText={setMeals} maxLength={500} />
-      <AIField purpose="itinerary_notes" context={{ title, destination, tier }} label="Anything else the AI should know" multiline placeholder="Permits, acclimatisation day, festival dates, your own tips…" value={notes} onChangeText={setNotes} maxLength={500} />
-      {kind === "custom" ? (
-        <AIField purpose="itinerary_requests" context={{ title, destination, tier }} label="Traveler's requests" multiline placeholder="Vegetarian, slow pace, elderly parent, anniversary dinner…" value={requests} onChangeText={setRequests} maxLength={2000} />
+      <Pressy onPress={() => setMore(!more)} style={styles.more}>
+        <T variant="bodyBold" style={{ flex: 1 }}>More details (optional)</T>
+        <Ionicons name={more ? "chevron-up" : "chevron-down"} size={18} color={palette.ink2} />
+      </Pressy>
+
+      {more ? (
+        <View>
+          <Field label="Places covered" placeholder="e.g. Leh · Nubra · Pangong" value={destination} onChangeText={setDestination} maxLength={200} />
+          {readyTemplates.length && kind === "custom" ? (
+            <>
+              <T variant="bodyBold" style={{ marginBottom: space.sm }}>Start from your trip page itinerary</T>
+              <Row gap={8} style={{ flexWrap: "wrap", marginBottom: space.md }}>
+                {readyTemplates.map((x) => <Chip key={x.id} label={x.title} active={basedOn === x.id} onPress={() => setBasedOn(basedOn === x.id ? undefined : x.id)} />)}
+              </Row>
+            </>
+          ) : null}
+          <LegFields title="Arrival" leg={arrival} onChange={setArrival} />
+          <LegFields title="Departure" leg={departure} onChange={setDeparture} />
+          <VoiceField label="Hotels you use (one per line)" multiline placeholder={"Night 1–2: The Grand Dragon, Leh\nNight 3: Nubra Organic Retreat"} value={hotels} onChangeText={setHotels} />
+          <VoiceField label="Must-include places (one per line)" multiline placeholder={"Pangong Lake\nKhardung La\nDiskit Monastery"} value={must} onChangeText={setMust} />
+          <VoiceField label="Places to skip (one per line)" multiline value={avoid} onChangeText={setAvoid} />
+          <VoiceField label="Vehicle" placeholder="e.g. Toyota Innova Crysta, AC" value={vehicle} onChangeText={setVehicle} maxLength={500} />
+          <VoiceField label="Meals" placeholder="e.g. Pure veg, Jain options, breakfast at hotel" value={meals} onChangeText={setMeals} maxLength={500} />
+          {kind === "custom" ? (
+            <VoiceField label="Traveler's requests" multiline placeholder="Vegetarian, slow pace, elderly parent, anniversary dinner…" value={requests} onChangeText={setRequests} maxLength={2000} />
+          ) : null}
+        </View>
       ) : null}
+
       {err ? <Banner tone="danger" title={err.message} /> : null}
-      <T variant="caption" color={palette.muted} style={{ marginTop: space.sm }}>Writing a detailed plan takes about a minute. You can edit everything afterwards.</T>
+      <T variant="caption" color={palette.muted} style={{ marginTop: space.md }}>
+        Takes about a minute. The traveler gets it in English; you can read it in your language.
+      </T>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  stepNo: { width: 30, height: 30, borderRadius: 15, backgroundColor: palette.ember, alignItems: "center", justifyContent: "center" },
+  more: { flexDirection: "row", alignItems: "center", marginTop: space.xl, marginBottom: space.md, paddingVertical: space.md, paddingHorizontal: space.lg, backgroundColor: palette.paper, borderRadius: radius.lg },
+});

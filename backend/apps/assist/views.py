@@ -13,6 +13,7 @@ Nothing is saved here: the app shows the suggestion and the person applies it.
 import json
 
 from rest_framework import serializers
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -145,3 +146,33 @@ class AssistView(APIView):
         if not out:
             raise bad_request("The AI came back empty. Try again or add an instruction.", "ai_empty")
         return Response({"text": out, "alternatives": alternatives, "format": fmt})
+
+
+class TranscribeView(APIView):
+    """
+    POST /api/v1/ai/transcribe/  multipart: audio=<file>, language=te|hi|…|auto
+    → {text}. Speak in any supported language; the words come back in that language.
+    """
+
+    permission_classes = [IsTravelerOrCaptain]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = "ai_assist"
+
+    def post(self, request):
+        from apps.common.languages import LANGUAGES
+
+        from . import speech
+
+        audio = request.FILES.get("audio")
+        if not audio:
+            raise bad_request("Send the recording as `audio`.", "audio_required")
+        lang = str(request.data.get("language", "")).strip().lower()
+        if lang not in LANGUAGES:
+            lang = ""
+        try:
+            text = speech.transcribe(audio, lang)
+        except speech.SpeechError as exc:
+            raise bad_request(str(exc), "speech_failed") from exc
+        if not text:
+            raise bad_request("We didn't hear anything. Hold the mic and speak.", "speech_empty")
+        return Response({"text": text})

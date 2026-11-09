@@ -12,6 +12,7 @@
     "expo-secure-store": "*",
     "expo-image": "*",
     "expo-location": "*",
+    "expo-audio": "*",
     "expo-notifications": "*",
     "expo-device": "*",
     "expo-haptics": "*",

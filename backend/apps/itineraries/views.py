@@ -186,6 +186,41 @@ class RewriteDayView(APIView):
         return Response({**new, "day": day})
 
 
+class TranslatedView(APIView):
+    """
+    GET /captain/itineraries/<id>/translated/?lang=te
+    → {language, content, poster}: the itinerary in the Captain's language (travelers always get English).
+    Translated once and kept until the English version changes.
+    """
+
+    permission_classes = [IsCaptain]
+    throttle_scope = "ai_assist"
+
+    def get(self, request, pk):
+        from apps.common.languages import LANGUAGES
+
+        from .ai import source_key, translate
+
+        it = _get_mine(request, pk)
+        lang = request.query_params.get("lang") or getattr(request.user, "language", "en")
+        if lang not in LANGUAGES:
+            raise bad_request("We don't support that language yet.", "language_unsupported")
+        if lang == "en" or not it.content:
+            return Response({"language": lang, "content": it.content, "poster": it.poster})
+        key = source_key(it)
+        cached = (it.translations or {}).get(lang)
+        if not cached or cached.get("source") != key:
+            if not llm.enabled():
+                raise bad_request("AI isn't set up on this server yet.", "ai_disabled")
+            try:
+                cached = {**translate(it, LANGUAGES[lang]), "source": key}
+            except GenerationError as exc:
+                raise bad_request(str(exc), "ai_failed") from exc
+            # .update() so the itinerary's "last edited" time doesn't move.
+            Itinerary.objects.filter(pk=it.pk).update(translations={**(it.translations or {}), lang: cached})
+        return Response({"language": lang, "content": cached["content"], "poster": cached["poster"]})
+
+
 class PublishView(APIView):
     """
     POST /captain/itineraries/<id>/publish/ {is_published}

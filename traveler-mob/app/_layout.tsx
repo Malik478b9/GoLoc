@@ -1,6 +1,8 @@
 import { AppShell, useSession } from "@goloc/core";
 import { Stack } from "expo-router";
 
+import { IntroSplash } from "../lib/intro";
+
 function RootStack() {
   const { signedIn } = useSession();
   return (
@@ -19,6 +21,7 @@ export default function Root() {
   return (
     <AppShell role="traveler">
       <RootStack />
+      <IntroSplash />
     </AppShell>
   );
 }

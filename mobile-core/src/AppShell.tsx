@@ -8,7 +8,9 @@ import { Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import type { Role } from "./api/client";
+import { api } from "./api/client";
 import { useAuth } from "./auth";
+import { loadLanguage, useLang } from "./i18n";
 import { usePushNotifications } from "./hooks";
 import { queryClient } from "./query";
 import { accents, palette } from "./theme";
@@ -31,9 +33,12 @@ export function AppShell({ role, children }: { role: Role; children: React.React
   const [fontsLoaded] = useFonts({ PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold });
   const { signedIn, loading } = useSession();
 
+  const langLoaded = useLang((s) => s.loaded);
   useEffect(() => {
+    loadLanguage();
     useAuth.getState().init(role);
   }, [role]);
+  useLanguageSync(signedIn);
 
   useEffect(() => {
     // Desktop browser: our fields show their own focus border, so drop the
@@ -45,7 +50,7 @@ export function AppShell({ role, children }: { role: Role; children: React.React
     return () => style.remove();
   }, []);
 
-  const ready = fontsLoaded && !loading;
+  const ready = fontsLoaded && !loading && langLoaded;
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
@@ -65,4 +70,23 @@ export function AppShell({ role, children }: { role: Role; children: React.React
       </QueryClientProvider>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * Keeps the app language and the account in step: the choice made on this phone
+ * wins and is saved to the account (the server uses it for AI help and itinerary
+ * translations); a fresh install picks the account's language back up.
+ */
+function useLanguageSync(signedIn: boolean) {
+  const user = useAuth((s) => s.user);
+  const { lang, chosen } = useLang();
+  useEffect(() => {
+    if (!signedIn || !user) return;
+    const server = (user as any).language as string | undefined;
+    if (!chosen && server && server !== "en") {
+      useLang.getState().set(server as any);
+    } else if (chosen && server !== lang) {
+      api.patch("/auth/me/", { language: lang }).then((me: any) => useAuth.getState().setUser(me)).catch(() => {});
+    }
+  }, [signedIn, user?.id, lang, chosen]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -5,7 +5,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Pressable, RefreshControl, Scr
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fonts, palette, space } from "../theme";
-import { Float, LinearGradient, Pulse } from "./motion";
+import { Float, Pulse } from "./motion";
 import { Button, IconButton, T, useAccent } from "./primitives";
 import { keyboardBehavior } from "./keyboard";
 
@@ -14,7 +14,7 @@ export function Header({ title, subtitle, back = true, right }: { title?: string
     <View style={styles.header}>
       {back ? <IconButton name="chevron-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} accessibilityLabel="Back" /> : <View style={{ width: 4 }} />}
       <View style={{ flex: 1 }}>
-        {title ? <T variant="title" style={{ fontSize: 21, lineHeight: 26 }} numberOfLines={1}>{title}</T> : null}
+        {title ? <T variant="title" style={{ fontSize: 22, lineHeight: 28 }} numberOfLines={1}>{title}</T> : null}
         {subtitle ? <T variant="caption" numberOfLines={1}>{subtitle}</T> : null}
       </View>
       {right}
@@ -87,16 +87,19 @@ export function Screen({
   );
 }
 
-export function Section({ title, action, onAction, children, style }: { title: string; action?: string; onAction?: () => void; children: React.ReactNode; style?: any }) {
+export function Section({ title, subtitle, action, onAction, children, style }: { title: string; subtitle?: string; action?: string; onAction?: () => void; children: React.ReactNode; style?: any }) {
   const accent = useAccent();
   return (
-    <View style={[{ marginTop: space.xl }, style]}>
+    <View style={[{ marginTop: space.xxl + space.sm }, style]}>
       <View style={styles.sectionHead}>
-        <T variant="title" style={{ fontSize: 20, lineHeight: 26, flex: 1 }}>{title}</T>
+        <View style={{ flex: 1 }}>
+          <T variant="title" style={{ fontSize: 20, lineHeight: 26 }}>{title}</T>
+          {subtitle ? <T variant="caption" style={{ marginTop: 2 }}>{subtitle}</T> : null}
+        </View>
         {action ? (
-          <Pressable onPress={onAction} hitSlop={8} style={[styles.sectionAction, { backgroundColor: accent.soft }]}>
+          <Pressable onPress={onAction} hitSlop={10} style={styles.sectionAction}>
             <T variant="small" color={accent.main} style={{ fontFamily: fonts.bold }}>{action}</T>
-            <Ionicons name="arrow-forward" size={12} color={accent.main} />
+            <Ionicons name="chevron-forward" size={14} color={accent.main} />
           </Pressable>
         ) : null}
       </View>
@@ -130,9 +133,9 @@ export function Empty({ icon = "sparkles-outline", title, body, action, onAction
   return (
     <View style={[styles.center, { paddingVertical: 48 }]}>
       <Float distance={5}>
-        <LinearGradient colors={[accent.soft, palette.white]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.emptyIcon}>
+        <View style={[styles.emptyIcon, { backgroundColor: accent.soft }]}>
           <Ionicons name={icon} size={30} color={accent.main} />
-        </LinearGradient>
+        </View>
       </Float>
       <T variant="h2" center style={{ marginTop: space.md }}>{title}</T>
       {body ? <T variant="caption" center style={{ marginTop: 4, maxWidth: 280 }}>{body}</T> : null}
@@ -163,13 +166,13 @@ export function SkeletonList({ rows = 4 }: { rows?: number }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.sand },
-  header: { flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: 60 },
-  pad: { paddingHorizontal: space.lg, paddingTop: space.sm },
-  footer: { paddingHorizontal: space.lg, paddingTop: space.md, backgroundColor: palette.sand, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.lineStrong },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: space.md },
+  header: { flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.sm, minHeight: 64 },
+  pad: { paddingHorizontal: space.xl, paddingTop: space.md },
+  footer: { paddingHorizontal: space.xl, paddingTop: space.md, backgroundColor: palette.paper, shadowColor: palette.ink, shadowOpacity: 0.06, shadowRadius: 16, shadowOffset: { width: 0, height: -6 }, elevation: 8 },
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: space.lg, gap: space.md },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl },
-  emptyIcon: { width: 76, height: 76, borderRadius: 26, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: palette.line },
-  sectionAction: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
+  emptyIcon: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center" },
+  sectionAction: { flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 4 },
 });
 
 /** Actual rendered width of a container (grids on desktop can't use the window width). */

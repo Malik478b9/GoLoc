@@ -20,7 +20,7 @@ from apps.cities.models import City
 from apps.common import llm
 from apps.common.api import haversine_km
 
-from .catalog import MONTH_NAMES, MONTHS, SEASON_LABEL, SEASONS, SPOTS, VIBE_INTERESTS
+from .catalog import MONTH_NAMES, MONTHS, SEASON_LABEL, SEASON_QUOTES, SEASONS, SPOTS, VIBE_INTERESTS
 
 logger = logging.getLogger("goloc.discover")
 
@@ -116,7 +116,7 @@ COPY_SCHEMA = {
 
 COPY_SYSTEM = """You write the home screen of GoLoc, an Indian travel app where travelers book verified local hosts.
 Write short, vivid, specific travel copy for the current month and season in India. No emojis, no hashtags, no exclamation marks, no clichés like "hidden gem" or "paradise".
-- headline: at most 7 words, about where to go this month.
+- headline: at most 8 words. An evocative, quotable line about travelling India this month and season, like a magazine cover line. No place names.
 - subhead: one sentence, at most 16 words.
 For each place:
 - title: at most 6 words, catchy, about an experience there.
@@ -126,7 +126,7 @@ Use only facts you are sure of. Return every place key you were given exactly on
 
 
 def _copy_key(month):
-    return f"discover:copy:{timezone.localdate().year}:{month}"
+    return f"discover:copy:v2:{timezone.localdate().year}:{month}"
 
 
 def ai_copy(month) -> dict | None:
@@ -177,8 +177,8 @@ def write_copy(month):
 PICKS = 7
 
 
-def posters(city_slug: str | None, today=None, saved: set | None = None) -> tuple[list, dict]:
-    """Every live spot as a poster, measured from the traveler's city. Returns (posters, context)."""
+def posters(city_slug: str | None, today=None, saved: set | None = None, point: tuple | None = None) -> tuple[list, dict]:
+    """Every live spot as a poster, measured from the traveler's place (or city). Returns (posters, context)."""
     today = today or timezone.localdate()
     month = today.month
     cities = {c.slug: c for c in City.objects.filter(is_live=True)}
@@ -193,7 +193,9 @@ def posters(city_slug: str | None, today=None, saved: set | None = None) -> tupl
         if not c:
             continue  # city not live: nothing to book there
         km = None
-        if origin and None not in (origin.latitude, origin.longitude, c.latitude, c.longitude):
+        if point and None not in (c.latitude, c.longitude):
+            km = haversine_km(point[0], point[1], float(c.latitude), float(c.longitude))
+        elif origin and None not in (origin.latitude, origin.longitude, c.latitude, c.longitude):
             km = 0.0 if origin.pk == c.pk else haversine_km(float(origin.latitude), float(origin.longitude),
                                                             float(c.latitude), float(c.longitude))
         fit = season_fit(s, month)
@@ -222,9 +224,16 @@ def _score(p) -> float:
     return 2 * p["season_fit"] + near + (0.8 if p["event"] else 0)
 
 
-def feed(city_slug: str | None, today=None, saved: set | None = None) -> dict:
+def season_quote(today) -> str:
+    """This week's headline for the season (the same for everyone, changes weekly)."""
+    lines = SEASON_QUOTES[SEASONS[today.month]]
+    return lines[today.isocalendar()[1] % len(lines)]
+
+
+def feed(city_slug: str | None, today=None, saved: set | None = None, point: tuple | None = None) -> dict:
     """The home screen's 7 picks: the best trips for this season, nearest first, at most 2 per city."""
-    items, ctx = posters(city_slug, today, saved)
+    today = today or timezone.localdate()
+    items, ctx = posters(city_slug, today, saved, point)
     month, origin, copy = ctx["month"], ctx["origin"], ctx["copy"]
     picks, per_city = [], {}
     for p in sorted(items, key=_score, reverse=True):
@@ -237,14 +246,14 @@ def feed(city_slug: str | None, today=None, saved: set | None = None) -> dict:
     return {
         "season": {"key": season, "label": SEASON_LABEL[season], "month": MONTH_NAMES[month]},
         "from_city": {"slug": origin.slug, "name": origin.name} if origin else None,
-        "headline": copy.get("headline") or f"Trips for {MONTH_NAMES[month]}",
+        "headline": copy.get("headline") or season_quote(today),
         "subhead": copy.get("subhead") or f"{SEASON_LABEL[season]} picks{' from ' + origin.name if origin else ''}, near and far.",
         "picks": picks,
         "ai": bool(copy),
     }
 
 
-def saved_posters(city_slug, keys: list[str]) -> list:
-    """Saved trips in the order they were saved, measured from the traveler's current city."""
-    by_key = {p["key"]: p for p in posters(city_slug, saved=set(keys))[0]}
+def saved_posters(city_slug, keys: list[str], point: tuple | None = None) -> list:
+    """Saved trips in the order they were saved, measured from the traveler's current place."""
+    by_key = {p["key"]: p for p in posters(city_slug, saved=set(keys), point=point)[0]}
     return [by_key[k] for k in keys if k in by_key]

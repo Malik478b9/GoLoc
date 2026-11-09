@@ -1,7 +1,9 @@
-import { SignIn } from "@goloc/core";
+import { LanguageScreen, SignIn, useLang } from "@goloc/core";
 
-// Spec §1: Captain path shows the Captain tagline.
+// Spec §1: Captain path shows the Captain tagline. First time on this phone: pick a language.
 export default function SignInScreen() {
+  const chosen = useLang((s) => s.chosen);
+  if (!chosen) return <LanguageScreen onDone={() => {}} />;
   return (
     <SignIn
       appName="GOLOC · CAPTAIN"

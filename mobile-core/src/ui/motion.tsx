@@ -17,6 +17,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useTx } from "../i18n";
 import { fonts, gradients, lift, motion, palette } from "../theme";
 import { useAccent } from "./accent";
 
@@ -178,6 +179,7 @@ function TabButton({ label, focused, badge, icon, renderIcon, onPress, onLongPre
   label: string; focused: boolean; badge?: number | string; icon?: keyof typeof Ionicons.glyphMap;
   renderIcon?: (p: { focused: boolean; color: string; size: number }) => React.ReactNode; onPress: () => void; onLongPress: () => void;
 }) {
+  const tx = useTx();
   const p = useSharedValue(focused ? 1 : 0);
   useEffect(() => {
     p.value = withSpring(focused ? 1 : 0, motion.spring);
@@ -194,7 +196,7 @@ function TabButton({ label, focused, badge, icon, renderIcon, onPress, onLongPre
           </View>
         ) : null}
       </Animated.View>
-      <Text numberOfLines={1} style={[tab.label, { color, fontFamily: focused ? fonts.bold : fonts.medium }]}>{label}</Text>
+      <Text numberOfLines={1} style={[tab.label, { color, fontFamily: focused ? fonts.bold : fonts.medium }]}>{tx(label)}</Text>
     </Pressable>
   );
 }

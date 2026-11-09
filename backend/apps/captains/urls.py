@@ -29,6 +29,7 @@ captain_urlpatterns = [
     path("itineraries/<uuid:pk>/generate/", itinerary_views.GenerateView.as_view(), name="captain-itinerary-generate"),
     path("itineraries/<uuid:pk>/publish/", itinerary_views.PublishView.as_view(), name="captain-itinerary-publish"),
     path("itineraries/<uuid:pk>/days/<int:day>/rewrite/", itinerary_views.RewriteDayView.as_view(), name="captain-itinerary-day"),
+    path("itineraries/<uuid:pk>/translated/", itinerary_views.TranslatedView.as_view(), name="captain-itinerary-translated"),
     *agency_captain_urls,
 ]
 

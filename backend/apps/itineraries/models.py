@@ -64,6 +64,8 @@ class Itinerary(models.Model):
 
     content = models.JSONField(default=dict, blank=True, help_text="The detailed itinerary document.")
     poster = models.JSONField(default=dict, blank=True, help_text="The brief poster.")
+    translations = models.JSONField(default=dict, blank=True,
+                                    help_text="Copies in the Captain's language: {lang: {content, poster, source}}.")
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
     error = models.CharField(max_length=300, blank=True)
     ai_model = models.CharField(max_length=40, blank=True)

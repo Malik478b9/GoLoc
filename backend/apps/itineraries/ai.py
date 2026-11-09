@@ -82,6 +82,8 @@ How to write it:
 - Guide-only trips: the guide walks with the traveler in person and shows them where to go, what to see and how to get around. The traveler books their own stay and transport, so give stay and transport as suggestions and say the traveler arranges them.
 - Costs are estimates in Indian rupees (₹), written like "₹1,200 per person". Tickets list entry fees and permits by name.
 - Use "" for any field that doesn't apply (for example no breakfast on an arrival evening). Keep tips short and useful.
+- The Captain may write or speak in any language (Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Urdu, or a mix with English, possibly with spelling mistakes from voice typing). Understand what they mean and follow it closely. Their "brief" is the most important input: it says which places, hotels, food and pace they want. A hotel the Captain names in the brief counts as Captain-supplied (confirmed=true).
+- Always write the itinerary itself in clear, simple English for the traveler. Short sentences, common words.
 - The poster is one glance: a punchy headline, a short tagline, at most 5 highlights, a duration label like "5 Days · 4 Nights", the comfort level and a price line. No emojis."""
 
 
@@ -122,8 +124,13 @@ def _brief(it, instructions: str = "") -> str:
         inclusions = (service.tier_inclusions or {}).get(it.tier)
         if inclusions:
             lines.append(f"What the {it.tier} tier includes: " + "; ".join(inclusions))
-    if it.inputs:
-        lines.append("Filled in by the Captain (keep exactly): " + json.dumps(it.inputs, ensure_ascii=False))
+    inputs = dict(it.inputs or {})
+    brief = inputs.pop("brief", "").strip()
+    if brief:
+        lines.append("Captain's description of the trip, in their own words (any language; follow it closely):\n" + brief)
+    inputs = {k: v for k, v in inputs.items() if v}
+    if inputs:
+        lines.append("Filled in by the Captain (keep exactly): " + json.dumps(inputs, ensure_ascii=False))
     if it.requests.strip():
         lines.append("Traveler's requests: " + it.requests.strip())
     if it.based_on_id and it.based_on.content:
@@ -223,3 +230,32 @@ def _template_draft(it) -> Draft:
         },
         model="template",
     )
+
+
+# ---------------------------------------------------------------- the Captain's language
+TRANSLATE_SYSTEM = """You translate travel itineraries for GoLoc Captains (local tour hosts in India) into their own language, so they can read exactly what their traveler will get.
+- Translate every text value into {language}, written in its own script, in simple everyday words a person with little schooling understands. Prefer the words people actually speak (for example common English loan words like "hotel", "bus", "ticket" can stay as people say them).
+- Keep names of places, hotels, restaurants, trains and flights recognisable (write them in {language} script, or keep them in English if that is how people say them).
+- Keep numbers, times, prices (₹), dates and the day numbers exactly.
+- Keep the same JSON structure. Do not add, drop or merge anything."""
+
+
+def source_key(it) -> str:
+    """Changes whenever the English itinerary changes, so a stale translation is redone."""
+    import hashlib
+
+    blob = json.dumps({"c": it.content, "p": it.poster}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(blob.encode()).hexdigest()[:16]
+
+
+def translate(it, language_name: str) -> dict:
+    """{content, poster} of this itinerary in the Captain's language."""
+    try:
+        result = llm.complete_json(
+            TRANSLATE_SYSTEM.replace("{language}", language_name),
+            json.dumps({"content": it.content, "poster": it.poster}, ensure_ascii=False),
+            SCHEMA, name="itinerary_translation", effort="low", max_tokens=32000,
+        )
+    except llm.LLMError as exc:
+        raise GenerationError(str(exc)) from exc
+    return {"content": result.data["content"], "poster": result.data["poster"]}
