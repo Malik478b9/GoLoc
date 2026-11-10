@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   api, Avatar, Banner, BookingDetail, Button, Card, ConfirmSheet, dateRange, Divider, ErrorView, Field, Loading, money, openChat,
   palette, Rating, Row, Screen, shareText, SOSButton, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError, useCheckout,
+  todayIST,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -66,7 +67,7 @@ export default function BookingScreen() {
   if (q.error || !q.data) return <Screen title="Booking"><ErrorView error={q.error} onRetry={q.refetch} /></Screen>;
   const b = q.data;
   const a = b.actions;
-  const tripDay = b.start_date <= new Date().toISOString().slice(0, 10);
+  const tripDay = b.start_date <= todayIST();
 
   return (
     <Screen title={b.code} subtitle={b.title} onRefresh={q.refetch}>

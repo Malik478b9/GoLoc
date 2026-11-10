@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 
 import { api } from "../api/client";
 import type { CaptainCalendar, DayStatus, WeeklySlot } from "../api/types";
-import { isoDate, longDate } from "../format";
+import { isoDate, longDate, todayISTDate } from "../format";
 import { fonts, palette, radius, space } from "../theme";
 import { Row, T } from "../ui/primitives";
 
@@ -53,10 +53,7 @@ export function weeklyHours(slots: WeeklySlot[]): string {
  * fully booked in red, days off greyed. Tap a free day to start a booking on it.
  */
 export function CaptainAvailability({ captainId, selected, onPick }: { captainId: string; selected?: string; onPick?: (iso: string) => void }) {
-  const today = useMemo(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }, []);
+  const today = useMemo(() => todayISTDate(), []);
   const [offset, setOffset] = useState(0);
   const month = new Date(today.getFullYear(), today.getMonth() + offset, 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();

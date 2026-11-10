@@ -1,6 +1,7 @@
 import {
   api, Banner, BookingDetail, Button, Card, ConfirmSheet, dateRange, Divider, ErrorView, Field, Loading, money, openChat, palette, radius, Row,
   Screen, Sheet, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError,
+  todayIST,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -56,7 +57,7 @@ export default function CaptainBooking() {
   if (q.error || !q.data) return <Screen title="Booking"><ErrorView error={q.error} onRetry={q.refetch} /></Screen>;
   const b = q.data;
   const a = b.actions;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIST();
   const isTripDay = b.start_date <= today;
 
   const footer =

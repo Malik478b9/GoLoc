@@ -3,6 +3,7 @@ import {
   api, Appear, Avatar, Banner, Booking, Button, Card, dateRange, Empty, ErrorView, Float, fonts, gradients, LinearGradient, Loading, money, motion,
   palette, Pressy, Pulse, radius, Rating, Row, Section, shadow, space, StatusBadge, T, time12, timeLeft, toast, toastError, useUnreadCount,
   useT,
+  todayIST,
 } from "@goloc/core";
 import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -259,7 +260,7 @@ export default function Business() {
                 {next ? (
                   <View style={{ gap: 12 }}>
                     <Appear><TripCard b={next} /></Appear>
-                    {next.start_date <= new Date().toISOString().slice(0, 10) ? (
+                    {next.start_date <= todayIST() ? (
                       <Button title={next.status === "in_progress" ? "Open trip console" : "Start trip"} icon="navigate" onPress={() => router.push(`/booking/${next.id}`)} />
                     ) : null}
                   </View>

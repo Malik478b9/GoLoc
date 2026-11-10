@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { forwardRef, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, TextInputProps, View } from "react-native";
 
-import { addDays, isoDate, longDate, shortDate, tripDays } from "../format";
+import { addDays, isoDate, longDate, shortDate, todayIST, todayISTDate, tripDays } from "../format";
 import { useTx } from "../i18n";
 import { fonts, palette, radius, space } from "../theme";
 import { Sheet } from "./feedback";
@@ -110,7 +110,7 @@ function MonthGrid({ minDate, maxDays, disabled, look, onPick, footer }: {
 }) {
   const accent = useAccent();
   const today = useMemo(() => {
-    const d = minDate ?? new Date();
+    const d = minDate ?? todayISTDate();
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }, [minDate]);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -194,7 +194,7 @@ export function DateRangeCalendar({ start, end, onChange, disabled = [], minDate
 }) {
   const accent = useAccent();
   const blocked = useMemo(() => new Set(disabled), [disabled]);
-  const today = isoDate(minDate ?? new Date());
+  const today = minDate ? isoDate(minDate) : todayIST();
   const latest = addDays(today, maxDays);
   const effectiveEnd = fixedDays && start ? addDays(start, fixedDays - 1) : end;
   const days = start && effectiveEnd ? tripDays(start, effectiveEnd) : 0;

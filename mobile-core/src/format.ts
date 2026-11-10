@@ -18,6 +18,22 @@ export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** GoLoc runs on India time (IST, UTC+5:30) whatever the phone's own time zone. */
+const IST_OFFSET_MS = 330 * 60000;
+
+/** Today's date in India, "2026-11-11". */
+export function todayIST(): string {
+  return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Today in India as a Date at local midnight (for calendars). */
+export const todayISTDate = () => parseDate(todayIST());
+
+/** Current India time as "HH:MM". */
+export function nowTimeIST(): string {
+  return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(11, 16);
+}
+
 export const shortDate = (iso: string) => {
   const d = parseDate(iso);
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
