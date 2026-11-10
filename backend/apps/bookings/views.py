@@ -26,7 +26,7 @@ FILTERS = {
 
 def scoped_bookings(request):
     role = role_of(request)
-    qs = Booking.objects.select_related("captain__user", "traveler", "service", "city")
+    qs = Booking.objects.select_related("captain__user", "traveler", "service", "city", "group")
     if role == "traveler":
         return qs.filter(traveler=request.user)
     if role == "captain":

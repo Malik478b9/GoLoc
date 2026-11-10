@@ -185,6 +185,69 @@ export type Booking = {
   request_expires_at: string | null;
   payment_due_at: string | null;
   created_at: string;
+  /** Set when these are seats on a Captain's group departure, shared with other travelers. */
+  group?: BookingGroup | null;
+};
+
+export type BookingGroup = {
+  id: string;
+  code: string;
+  title: string;
+  price_per_seat: number;
+  /** Detail view only. */
+  seats?: number;
+  min_seats?: number;
+  seats_taken?: number;
+  seats_paid?: number;
+  status?: "open" | "cancelled";
+};
+
+/** A Captain's group departure: fixed date, seats, price per seat. Strangers join by buying seats. */
+export type GroupTrip = {
+  id: string;
+  code: string;
+  title: string;
+  captain: { id: string; code: string; name: string; avatar: string | null; rating_avg: number; rating_count: number;
+    is_verified: boolean; trips_completed: number; languages: string[] };
+  service: { id: string; kind: ServiceKind; category: string; description: string; cover_image: string | null;
+    duration_hours: number; duration_days: number; stops: string[]; itinerary: string[] };
+  city_name: string;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  days: number;
+  meeting_point: string;
+  note: string;
+  seats: number;
+  min_seats: number;
+  seats_taken: number;
+  seats_paid: number;
+  seats_left: number;
+  /** Enough paid seats: the trip will run. */
+  will_run: boolean;
+  price_per_seat: number;
+  insurance_per_seat: number;
+  status: "open" | "cancelled";
+  state: "open" | "full" | "departed" | "finished" | "cancelled";
+  cancel_reason: string;
+  /** If too few have paid by then, it's cancelled with full refunds. */
+  decide_at: string;
+  my_booking: { id: string; code: string; status: BookingStatus; guests: number } | null;
+  created_at: string;
+};
+
+export type GroupTraveler = {
+  booking_id: string;
+  code: string;
+  status: BookingStatus;
+  status_label: string;
+  name: string;
+  guests: number;
+  guest_names: string[];
+  fare: number;
+  captain_net: number;
+  can_start: boolean;
+  can_complete: boolean;
 };
 
 export type BookingDetail = Booking & {

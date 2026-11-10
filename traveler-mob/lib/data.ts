@@ -1,4 +1,4 @@
-import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, Paginated, Place, Post, useAuth, UserPlace } from "@goloc/core";
+import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, GroupTrip, Paginated, Place, Post, useAuth, UserPlace } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 
@@ -107,4 +107,14 @@ export const useCompare = create<CompareState>((set, get) => ({
 
 export function trackPost(postId: string, type: "view" | "profile_open" | "booking_start") {
   api.post(`/social/posts/${postId}/event/`, { type }).catch(() => {});
+}
+
+/** Open group departures travelers can join (by city or by Captain). */
+export function useGroupTrips(params: { city?: string; captain?: string }) {
+  return useQuery({
+    queryKey: ["groups", params.city ?? "", params.captain ?? ""],
+    queryFn: () => api.get<GroupTrip[]>("/groups/", { ...(params.city ? { city: params.city } : {}), ...(params.captain ? { captain: params.captain } : {}) }),
+    enabled: !!(params.city || params.captain),
+    staleTime: 60_000,
+  });
 }

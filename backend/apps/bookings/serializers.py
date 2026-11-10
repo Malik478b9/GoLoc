@@ -26,12 +26,24 @@ class BookingListSerializer(serializers.ModelSerializer):
     traveler = serializers.SerializerMethodField()
     city_name = serializers.CharField(source="city.name", read_only=True)
     agency_name = serializers.CharField(source="agency.name", read_only=True, default=None)
+    group = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
         fields = ["id", "code", "status", "status_label", "kind", "tier", "guests", "start_date", "end_date",
                   "start_time", "title", "captain", "traveler", "city_name", "agency_name", "fare", "total", "captain_net",
-                  "request_expires_at", "payment_due_at", "created_at"]
+                  "request_expires_at", "payment_due_at", "created_at", "group"]
+
+    def get_group(self, obj):
+        """Set when this booking is seats on a group departure shared with other travelers."""
+        g = obj.group
+        if g is None:
+            return None
+        out = {"id": g.id, "code": g.code, "title": g.title, "price_per_seat": g.price_per_seat}
+        if self.context.get("detail"):
+            out.update(seats=g.seats, min_seats=g.min_seats, seats_taken=g.seats_taken(), seats_paid=g.seats_paid(),
+                       status=g.status)
+        return out
 
     @property
     def role(self):
@@ -73,6 +85,10 @@ class EventSerializer(serializers.ModelSerializer):
 
 
 class BookingDetailSerializer(BookingListSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context["detail"] = True
+
     events = EventSerializer(many=True, read_only=True)
     actions = serializers.SerializerMethodField()
     start_pin = serializers.SerializerMethodField()

@@ -27,16 +27,21 @@ def dates_between(start, end):
 class _Calendar:
     """Everything needed to judge a date range, loaded in three queries."""
 
-    def __init__(self, captain, start, end, exclude_booking_id=None):
+    def __init__(self, captain, start, end, exclude_booking_id=None, exclude_group_id=None):
         from apps.bookings.models import Booking
 
         self.captain = captain
         self.slots = {s.weekday: s for s in captain.weekly_slots.all()}
         self.blocked = set(captain.blocked_dates.filter(date__range=(start, end)).values_list("date", flat=True))
-        busy = Booking.objects.filter(captain=captain, status__in=Booking.HOLDS_SLOT, start_date__lte=end, end_date__gte=start)
+        # Seats on a group departure don't hold slots of their own: the departure holds one.
+        busy = Booking.objects.filter(captain=captain, status__in=Booking.HOLDS_SLOT, start_date__lte=end, end_date__gte=start,
+                                      group__isnull=True)
         if exclude_booking_id:
             busy = busy.exclude(pk=exclude_booking_id)
-        self.busy = list(busy.values_list("start_date", "end_date"))
+        groups = captain.group_trips.filter(status="open", start_date__lte=end, end_date__gte=start)
+        if exclude_group_id:
+            groups = groups.exclude(pk=exclude_group_id)
+        self.busy = list(busy.values_list("start_date", "end_date")) + list(groups.values_list("start_date", "end_date"))
 
     def status(self, day) -> str:
         """free | off (not a working weekday) | blocked (day off) | booked (no capacity left)."""
@@ -58,9 +63,9 @@ class _Calendar:
         }.get(self.status(day))
 
 
-def unavailable_reason(captain: CaptainProfile, start, end, exclude_booking_id=None) -> str | None:
+def unavailable_reason(captain: CaptainProfile, start, end, exclude_booking_id=None, exclude_group_id=None) -> str | None:
     """None when the Captain can take a trip over [start, end]; otherwise why not."""
-    cal = _Calendar(captain, start, end, exclude_booking_id)
+    cal = _Calendar(captain, start, end, exclude_booking_id, exclude_group_id)
     for day in dates_between(start, end):
         reason = cal.reason(day)
         if reason:
@@ -116,7 +121,12 @@ def free_for_trip(capacity: dict, start, end) -> set:
     blocked = set(BlockedDate.objects.filter(captain_id__in=ids, date__range=(start, end)).values_list("captain_id", flat=True))
     busy = defaultdict(list)
     for cid, s, e in Booking.objects.filter(captain_id__in=ids, status__in=Booking.HOLDS_SLOT, start_date__lte=end,
-                                            end_date__gte=start).values_list("captain_id", "start_date", "end_date"):
+                                            end_date__gte=start, group__isnull=True).values_list("captain_id", "start_date", "end_date"):
+        busy[cid].append((s, e))
+    from apps.bookings.models import GroupTrip
+
+    for cid, s, e in GroupTrip.objects.filter(captain_id__in=ids, status="open", start_date__lte=end,
+                                              end_date__gte=start).values_list("captain_id", "start_date", "end_date"):
         busy[cid].append((s, e))
     return {
         cid for cid, limit in capacity.items()

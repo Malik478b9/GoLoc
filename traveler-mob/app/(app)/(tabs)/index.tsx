@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Appear, Empty, fonts, palette, Pressy, radius, Row, Section, shadow, Skeleton, space, T, useUnreadCount,
+  Appear, Empty, fonts, GroupTripCard, palette, Pressy, radius, Row, Section, shadow, Skeleton, space, T, useUnreadCount,
 } from "@goloc/core";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -8,7 +8,7 @@ import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CaptainRow, CategoryTile, ReelTile } from "../../../lib/cards";
-import { useCity, useDiscovery, useDiscoverFeed, useFeed, usePlace } from "../../../lib/data";
+import { useCity, useDiscovery, useDiscoverFeed, useFeed, useGroupTrips, usePlace } from "../../../lib/data";
 import { PosterRail } from "../../../lib/discover";
 import { PlacePicker } from "../../../lib/place-picker";
 
@@ -28,6 +28,7 @@ export default function Discover() {
   const feed = useFeed(city?.slug);
   const top = useDiscovery({ city: city?.slug, page_size: "6" });
   const discover = useDiscoverFeed(city?.slug, place);
+  const groups = useGroupTrips({ city: city?.slug });
   const picks = discover.data?.picks ?? [];
   const [placeOpen, setPlaceOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,6 +107,24 @@ export default function Discover() {
             <View style={styles.buildArrow}><Ionicons name="arrow-forward" size={20} color={palette.ink} /></View>
           </Pressy>
         </Appear>
+
+        {/* ---------- group trips ---------- */}
+        {groups.data?.length ? (
+          <>
+            <Section title="Join a group trip" subtitle="Travel with others on a Captain's fixed date. Pay per seat."
+              action="See all" onAction={() => router.push("/groups")} style={pad}>
+              <View />
+            </Section>
+            <FlatList
+              horizontal
+              data={groups.data.slice(0, 8)}
+              keyExtractor={(g) => g.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: space.xl, gap: 14, paddingBottom: 6 }}
+              renderItem={({ item }) => <GroupTripCard g={item} width={280} onPress={() => router.push(`/group/${item.id}`)} />}
+            />
+          </>
+        ) : null}
 
         {/* ---------- categories ---------- */}
         <Section title="What are you into?" style={pad}>

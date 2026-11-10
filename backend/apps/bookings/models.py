@@ -51,6 +51,10 @@ class Booking(models.Model):
         help_text="The agency the Captain worked for when this was booked: it gets the earnings and can reassign the trip.",
     )
     city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="bookings")
+    group = models.ForeignKey(
+        "bookings.GroupTrip", null=True, blank=True, on_delete=models.PROTECT, related_name="bookings",
+        help_text="Set when the traveler joined a Captain's group departure (seats shared with other travelers).",
+    )
 
     kind = models.CharField(max_length=12)
     tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.STANDARD)
@@ -121,6 +125,69 @@ class Booking(models.Model):
     @property
     def is_paid(self):
         return self.status in self.PAID
+
+
+class GroupTrip(models.Model):
+    """
+    A Captain's group departure: a fixed date, a number of seats and a price per seat.
+    Travelers who don't know each other join by buying seats; each gets their own Booking
+    (own payment, trip PIN, insurance, SOS and refund), linked here by Booking.group.
+    The departure holds one of the Captain's daily slots from the moment it's posted.
+
+      open ──(enough joined)──▶ runs on the day        open ──cancel / too few joined──▶ cancelled
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        CANCELLED = "cancelled", "Cancelled"
+
+    # Seats count as taken from the moment a traveler joins (they then have a short window to pay).
+    SEAT_STATUSES = (Booking.Status.ACCEPTED, Booking.Status.CONFIRMED, Booking.Status.IN_PROGRESS, Booking.Status.COMPLETED)
+    PAID_STATUSES = Booking.PAID
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=16, unique=True, help_text="Public ID, e.g. GRP-1001.")
+    captain = models.ForeignKey("captains.CaptainProfile", on_delete=models.PROTECT, related_name="group_trips")
+    service = models.ForeignKey("captains.ServiceOffer", on_delete=models.PROTECT, related_name="group_trips")
+    city = models.ForeignKey("cities.City", on_delete=models.PROTECT, related_name="group_trips")
+
+    title = models.CharField(max_length=120)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    start_time = models.TimeField(default=time(9, 0))
+    meeting_point = models.CharField(max_length=200, blank=True)
+    note = models.CharField(max_length=1000, blank=True, help_text="Anything joiners should know: pace, what to bring, who it suits.")
+    seats = models.PositiveSmallIntegerField(validators=[MinValueValidator(2), MaxValueValidator(30)])
+    min_seats = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(1)],
+                                                 help_text="Paid seats needed for the trip to run.")
+    price_per_seat = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    cancel_reason = models.CharField(max_length=300, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["start_date", "start_time"]
+        indexes = [models.Index(fields=["status", "start_date"]), models.Index(fields=["captain", "status", "start_date"])]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(end_date__gte=models.F("start_date")), name="group_dates_ordered"),
+            models.CheckConstraint(condition=models.Q(min_seats__lte=models.F("seats")), name="group_min_within_seats"),
+        ]
+
+    def __str__(self):
+        return self.code
+
+    @property
+    def starts_at(self) -> datetime:
+        return timezone.make_aware(datetime.combine(self.start_date, self.start_time))
+
+    def seats_taken(self) -> int:
+        return sum(self.bookings.filter(status__in=self.SEAT_STATUSES).values_list("guests", flat=True))
+
+    def seats_paid(self) -> int:
+        return sum(self.bookings.filter(status__in=self.PAID_STATUSES).values_list("guests", flat=True))
 
 
 class BookingEvent(models.Model):

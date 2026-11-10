@@ -28,3 +28,4 @@ export * from "./components/AIAssist";
 export * from "./components/Availability";
 export * from "./components/Language";
 export * from "./components/Voice";
+export * from "./components/Group";

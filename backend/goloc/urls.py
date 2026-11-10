@@ -31,6 +31,7 @@ api = [
     path("captain/", include(captain_urlpatterns)),
     path("captains/", include(public_urlpatterns)),
     path("bookings/", include("apps.bookings.urls")),
+    path("groups/", include("apps.bookings.group_urls")),
     path("payments/", include("apps.payments.urls")),
     path("trips/", include("apps.trips.urls")),
     path("social/", include("apps.social.urls")),

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.agencies.urls import captain_urlpatterns as agency_captain_urls
+from apps.bookings.group_urls import captain_urlpatterns as group_captain_urls
 from apps.itineraries import views as itinerary_views
 
 from . import views
@@ -31,6 +32,7 @@ captain_urlpatterns = [
     path("itineraries/<uuid:pk>/days/<int:day>/rewrite/", itinerary_views.RewriteDayView.as_view(), name="captain-itinerary-day"),
     path("itineraries/<uuid:pk>/translated/", itinerary_views.TranslatedView.as_view(), name="captain-itinerary-translated"),
     *agency_captain_urls,
+    *group_captain_urls,
 ]
 
 # /api/v1/captains/ — public discovery for travelers

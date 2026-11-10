@@ -205,8 +205,13 @@ def mark_paid(booking) -> Booking:
     booking.insurance_policy_no = f"INS-{booking.code}"
     booking.save(update_fields=["status", "confirmed_at", "start_pin", "insurance_policy_no", "updated_at"])
     log(booking, booking.traveler, "traveler", "paid", f"Paid ₹{booking.total:,} · insurance {booking.insurance_policy_no}")
-    notify(booking.captain.user, "captain", "booking_confirmed", f"Confirmed · {booking.code}",
-           f"{booking.traveler.full_name or 'Traveler'} paid. Trip on {booking.start_date:%d %b}.", {"booking_id": booking.id})
+    if booking.group_id:
+        from .groups import joined_paid
+
+        joined_paid(booking)
+    else:
+        notify(booking.captain.user, "captain", "booking_confirmed", f"Confirmed · {booking.code}",
+               f"{booking.traveler.full_name or 'Traveler'} paid. Trip on {booking.start_date:%d %b}.", {"booking_id": booking.id})
     notify(booking.traveler, "traveler", "booking_confirmed", "You're booked ✅",
            f"{booking.code} with {booking.captain.name} on {booking.start_date:%d %b}. Trip PIN: {booking.start_pin}",
            {"booking_id": booking.id})
@@ -214,7 +219,7 @@ def mark_paid(booking) -> Booking:
 
 
 # ---------------------------------------------------------------- cancel
-def cancel(booking, user, role: str, reason: str, refund_percent: int | None = None) -> Booking:
+def cancel(booking, user, role: str, reason: str, refund_percent: int | None = None, notify_captain: bool = True) -> Booking:
     from apps.payments import services as payments
 
     with transaction.atomic():
@@ -240,9 +245,15 @@ def cancel(booking, user, role: str, reason: str, refund_percent: int | None = N
     if amount:
         payments.refund(booking, amount, f"Cancelled by {role}", user)
 
-    other = (booking.captain.user, "captain") if role != "captain" else (booking.traveler, "traveler")
-    notify(other[0], other[1], "booking_cancelled", f"{booking.code} was cancelled",
-           reason or f"Cancelled by the {role}.", {"booking_id": booking.id})
+    # Tell everyone who didn't do it (an admin or system cancel reaches both sides).
+    why = reason or f"Cancelled by the {role}."
+    if role != "traveler":
+        refund_note = f" ₹{amount:,} will be refunded in 5–7 working days." if amount else ""
+        notify(booking.traveler, "traveler", "booking_cancelled", f"{booking.code} was cancelled", why + refund_note,
+               {"booking_id": booking.id})
+    if role != "captain" and notify_captain:
+        notify(booking.captain.user, "captain", "booking_cancelled", f"{booking.code} was cancelled", why,
+               {"booking_id": booking.id})
     if role == "captain" and was_paid:
         notify_admins("captain_cancelled", f"Captain cancelled a paid trip · {booking.code}",
                       f"{booking.captain.code} · {reason}", {"booking_id": booking.id})

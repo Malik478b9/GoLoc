@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   api, Appear, Avatar, Badge, Button, CaptainAvailability, Card, Chip, Empty, ErrorView, gradients, Header, lift, LinearGradient, Loading, money, openChat, Paginated, palette, Post, PosterCard,
-  Pressy, radius, Rating, Review, Row, Service, shadow, SkeletonList, longDate, space, T, timeAgo, titleCase, toastError, useMeasuredWidth,
+  Pressy, radius, Rating, Review, Row, Service, shadow, SkeletonList, longDate, space, T, timeAgo, titleCase, toastError, useMeasuredWidth, GroupTripCard,
 } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
@@ -12,7 +12,7 @@ import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnim
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ReelTile } from "../../../lib/cards";
-import { toggleSave, useCaptain, useCompare } from "../../../lib/data";
+import { toggleSave, useCaptain, useCompare, useGroupTrips } from "../../../lib/data";
 
 const HERO_H = 240;
 const GAP = space.xxl + space.sm;
@@ -65,6 +65,7 @@ function ServiceCard({ s, date }: { s: Service; date?: string }) {
 export default function CaptainProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const q = useCaptain(id);
+  const groups = useGroupTrips({ captain: q.data?.id });
   const qc = useQueryClient();
   const compare = useCompare();
   const insets = useSafeAreaInsets();
@@ -233,6 +234,20 @@ export default function CaptainProfile() {
               </View>
             ) : null}
           </Card>
+
+          {/* ---------- group departures ---------- */}
+          {groups.data?.length ? (
+            <View style={{ marginTop: GAP }}>
+              <T variant="title">Group trips</T>
+              <T variant="caption" style={{ marginTop: 4, marginBottom: space.md }}>Join other travelers on {firstName}'s fixed dates. Pay per seat.</T>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -space.xl }}
+                contentContainerStyle={{ gap: 14, paddingHorizontal: space.xl, paddingBottom: 6 }}>
+                {groups.data.map((g) => (
+                  <GroupTripCard key={g.id} g={g} width={270} showCaptain={false} onPress={() => router.push(`/group/${g.id}`)} />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
 
           {/* ---------- tabs ---------- */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: GAP, marginHorizontal: -space.xl }} contentContainerStyle={{ gap: 8, paddingHorizontal: space.xl }}>

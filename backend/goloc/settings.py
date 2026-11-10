@@ -315,6 +315,8 @@ INSURANCE_FEE_PER_GUEST_DAY = config("INSURANCE_FEE_PER_GUEST_DAY", default=49, 
 INSURANCE_PREMIUM_PER_GUEST_DAY = config("INSURANCE_PREMIUM_PER_GUEST_DAY", default=29, cast=int)  # our cost
 REQUEST_EXPIRY_HOURS = config("REQUEST_EXPIRY_HOURS", default=24, cast=int)     # Captain must answer within
 PAYMENT_WINDOW_MINUTES = config("PAYMENT_WINDOW_MINUTES", default=120, cast=int)  # Traveler must pay within
+GROUP_PAYMENT_MINUTES = config("GROUP_PAYMENT_MINUTES", default=30, cast=int)  # joining a group holds seats this long
+GROUP_DECIDE_HOURS = config("GROUP_DECIDE_HOURS", default=24, cast=int)  # too few paid seats this long before → cancelled
 BOOKING_MAX_DAYS_AHEAD = config("BOOKING_MAX_DAYS_AHEAD", default=180, cast=int)
 GUIDE_MAX_DAYS = config("GUIDE_MAX_DAYS", default=30, cast=int)  # longest single guide hire, arrival → return
 

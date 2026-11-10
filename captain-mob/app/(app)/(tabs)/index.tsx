@@ -269,7 +269,18 @@ export default function Business() {
                 )}
               </Section>
 
-              <Pressy onPress={() => router.push("/reviews")} scaleTo={0.98} style={[styles.ratingCard, { marginTop: space.xl }]}>
+              <Pressy onPress={() => router.push("/groups")} scaleTo={0.98} style={[styles.ratingCard, { marginTop: space.xl }]}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: palette.emberSoft, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="people" size={20} color={palette.ember} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T variant="bodyBold">Group trips</T>
+                  <T variant="caption">Post a date. Travelers join and pay per seat.</T>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={palette.ember} />
+              </Pressy>
+
+              <Pressy onPress={() => router.push("/reviews")} scaleTo={0.98} style={[styles.ratingCard, { marginTop: space.md }]}>
                 <View style={{ flex: 1 }}>
                   <T variant="label">Your reputation</T>
                   <View style={{ marginTop: 6 }}><Rating value={p.rating_avg} count={p.rating_count} /></View>

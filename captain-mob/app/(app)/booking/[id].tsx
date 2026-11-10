@@ -1,12 +1,13 @@
+import { Ionicons } from "@expo/vector-icons";
 import {
   api, Banner, BookingDetail, Button, Card, ConfirmSheet, dateRange, Divider, ErrorView, Field, Loading, money, openChat, palette, radius, Row,
   Screen, Sheet, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError,
-  todayIST,
+  todayIST, PinInput,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { Linking, StyleSheet, TextInput, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 
 import { EndTripSheet } from "../../../lib/EndTripSheet";
 
@@ -90,6 +91,21 @@ export default function CaptainBooking() {
         {dateRange(b.start_date, b.end_date)} · {time12(b.start_time)} · {b.guests} guest{b.guests > 1 ? "s" : ""}
         {b.tier !== "standard" ? ` · ${TIER_LABEL[b.tier]} tier` : ""}
       </T>
+
+      {b.group ? (
+        <Card style={{ marginTop: space.md }} onPress={() => router.push(`/groups/${b.group!.id}`)}>
+          <Row gap={space.md}>
+            <Ionicons name="people" size={22} color={palette.ember} />
+            <View style={{ flex: 1 }}>
+              <T variant="bodyBold">Part of group trip {b.group.code}</T>
+              <T variant="caption">
+                {b.group.seats_taken != null ? `${b.group.seats_taken} of ${b.group.seats} seats taken · ` : ""}Check everyone in from the group screen.
+              </T>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+          </Row>
+        </Card>
+      ) : null}
 
       {b.guest_details?.some((g) => g.name) ? (
         <Card style={{ marginTop: space.md }}>
@@ -199,7 +215,7 @@ export default function CaptainBooking() {
 
       <Sheet visible={sheet === "start"} onClose={() => setSheet(null)} title="Enter trip PIN">
         <T style={{ marginBottom: space.lg }}>Ask {b.traveler.name.split(" ")[0]} for the 4-digit PIN shown in their app. This confirms you've met.</T>
-        <TextInput value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" maxLength={4} autoFocus style={styles.pin} placeholder="••••" placeholderTextColor={palette.lineStrong} />
+        <PinInput value={pin} onChange={setPin} />
         <Button title="Start trip" disabled={pin.length !== 4} loading={act.isPending} onPress={() => act.mutate({ action: "start", body: { pin } })} style={{ marginTop: space.lg }} />
         <Button title="Cancel" kind="ghost" onPress={() => setSheet(null)} />
       </Sheet>

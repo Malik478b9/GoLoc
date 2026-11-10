@@ -31,17 +31,33 @@ def record_location(booking, user, role, lat, lng, accuracy=None, heading=None, 
                                        accuracy_m=accuracy, heading=heading, speed_mps=speed)
     data = {"lat": float(lat), "lng": float(lng), "accuracy_m": accuracy, "heading": heading, "at": ping.created_at.isoformat()}
     cache.set(_key(booking.pk, role), data, 6 * 3600)
+    if role == "captain" and booking.group_id:
+        # One Captain, many travelers: their position reaches everyone in the group.
+        cache.set(_group_key(booking.group_id), data, 6 * 3600)
     return data
+
+
+def _group_key(group_id):
+    return f"loc:group:{group_id}"
 
 
 def latest_location(booking, role):
     data = cache.get(_key(booking.pk, role))
+    if role == "captain" and booking.group_id:
+        shared = cache.get(_group_key(booking.group_id))
+        if shared and (data is None or shared["at"] > data["at"]):
+            data = shared
     if data is None:
         ping = LocationPing.objects.filter(booking=booking, role=role).order_by("-created_at").first()
         if ping:
             data = {"lat": float(ping.lat), "lng": float(ping.lng), "accuracy_m": ping.accuracy_m, "heading": ping.heading,
                     "at": ping.created_at.isoformat()}
             cache.set(_key(booking.pk, role), data, 6 * 3600)
+    if data is None and role == "captain" and booking.group_id:
+        ping = LocationPing.objects.filter(booking__group_id=booking.group_id, role="captain").order_by("-created_at").first()
+        if ping:
+            data = {"lat": float(ping.lat), "lng": float(ping.lng), "accuracy_m": ping.accuracy_m, "heading": ping.heading,
+                    "at": ping.created_at.isoformat()}
     return data
 
 

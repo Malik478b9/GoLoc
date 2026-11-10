@@ -1,4 +1,4 @@
-import { api, Booking } from "@goloc/core";
+import { api, Booking, GroupTrip } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type CaptainProfile = {
@@ -104,3 +104,14 @@ export function useRefreshBusiness() {
     qc.invalidateQueries({ queryKey: ["vehicles"] });
   };
 }
+
+// ---------------------------------------------------------------- group trips
+export type MyGroups = {
+  upcoming: GroupTrip[];
+  past: GroupTrip[];
+  services: { id: string; title: string; kind: string; max_guests: number; duration_days: number; start_time: string; suggested_price: number }[];
+  decide_hours: number;
+  earliest_date: string;
+};
+
+export const useMyGroups = () => useQuery({ queryKey: ["my-groups"], queryFn: () => api.get<MyGroups>("/captain/groups/") });

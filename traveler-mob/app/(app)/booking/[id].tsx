@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   api, Avatar, Banner, BookingDetail, Button, Card, ConfirmSheet, dateRange, Divider, ErrorView, Field, Loading, money, openChat,
   palette, Rating, Row, Screen, shareText, SOSButton, space, StatusBadge, T, time12, timeAgo, timeLeft, TIER_LABEL, toast, toastError, useCheckout,
-  todayIST,
+  todayIST, PinCode,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -100,36 +100,56 @@ export default function BookingScreen() {
         )}
         {b.status === "accepted" && (
           <Card style={{ borderColor: palette.warning, borderWidth: 1.5 }}>
-            <T variant="h2">{b.captain.name} accepted 🎉</T>
-            <T variant="caption">Pay {money(b.total)} within {timeLeft(b.payment_due_at)} to confirm. Paying unlocks trip insurance, live tracking and SOS.</T>
+            <T variant="h2">{b.group ? `${b.guests} seat${b.guests > 1 ? "s" : ""} held for you` : `${b.captain.name} accepted 🎉`}</T>
+            <T variant="caption">
+              {b.group
+                ? `Pay ${money(b.total)} within ${timeLeft(b.payment_due_at)} or the seats go back to others. Paying unlocks trip insurance, live tracking and SOS.`
+                : `Pay ${money(b.total)} within ${timeLeft(b.payment_due_at)} to confirm. Paying unlocks trip insurance, live tracking and SOS.`}
+            </T>
             <Button title={`Pay ${money(b.total)}`} icon="lock-closed" loading={checkout.starting} onPress={() => checkout.start(b.id)} style={{ marginTop: space.md }} />
           </Card>
         )}
-        {b.status === "confirmed" && (
-          <Card style={{ backgroundColor: palette.night }}>
-            <T variant="label" color={palette.marigold}>Your trip PIN</T>
-            <T style={styles.pin}>{b.start_pin}</T>
-            <T variant="small" color={palette.onDark}>Share this with your Captain when you meet — it starts the trip. Never share it before you meet.</T>
-            <Divider style={{ backgroundColor: "#ffffff22", marginVertical: space.md }} />
-            <Row gap={8}><Ionicons name="shield-checkmark" size={16} color={palette.marigold} /><T variant="small" color={palette.white}>Insured · {b.insurance_policy_no}</T></Row>
-          </Card>
-        )}
+        {b.status === "confirmed" && b.start_pin ? (
+          <PinCard
+            label="Your trip PIN"
+            pin={b.start_pin}
+            body="Tell this to your Captain when you meet. It starts your trip. Never share it before you meet."
+            footer={<Row gap={8}><Ionicons name="shield-checkmark" size={16} color={palette.marigold} /><T variant="small" color={palette.onDark}>Insured · {b.insurance_policy_no}</T></Row>}
+          />
+        ) : null}
         {b.status === "in_progress" && (
-          <Card style={{ backgroundColor: palette.night }}>
-            <T variant="label" color={palette.marigold}>Your end PIN</T>
-            {b.end_pin ? (
-              <>
-                <T style={styles.pin}>{b.end_pin}</T>
-                <T variant="small" color={palette.onDark}>Give this to your Captain only when the trip is really over: every stop done and you've been dropped off. It completes the trip and releases their payment.</T>
-                {a.complete ? <Button title="Or end the trip myself" icon="flag" kind="secondary" small onPress={() => setEndOpen(true)} style={{ marginTop: space.md, alignSelf: "flex-start" }} /> : null}
-              </>
-            ) : (
-              <T variant="small" color={palette.onDark} style={{ marginTop: 6 }}>
+          b.end_pin ? (
+            <PinCard
+              label="Your end PIN"
+              pin={b.end_pin}
+              body="Give this to your Captain only when the trip is really over: every stop done and you've been dropped off. It completes the trip and releases their payment."
+              footer={a.complete ? <Button title="Or end the trip myself" icon="flag" kind="secondary" small onPress={() => setEndOpen(true)} style={{ alignSelf: "center" }} /> : undefined}
+            />
+          ) : (
+            <Card style={styles.pinCard}>
+              <View style={styles.pinIcon}><Ionicons name="time-outline" size={22} color={palette.marigold} /></View>
+              <T variant="h2" color={palette.white} center>Trip in progress</T>
+              <T variant="small" color={palette.onDarkMuted} center style={{ marginTop: 6 }}>
                 Your trip runs until {dateRange(b.can_complete_from, b.can_complete_from)}. Your end PIN appears here on that day. Your Captain can't finish the trip without it.
               </T>
-            )}
-          </Card>
+            </Card>
+          )
         )}
+        {b.group ? (
+          <Card onPress={() => router.push(`/group/${b.group!.id}`)}>
+            <Row gap={space.md}>
+              <View style={styles.groupIcon}><Ionicons name="people" size={20} color={palette.rickshaw} /></View>
+              <View style={{ flex: 1 }}>
+                <T variant="bodyBold">Group trip · {b.group.code}</T>
+                <T variant="caption">
+                  {b.group.seats_taken != null ? `${b.group.seats_taken} of ${b.group.seats} seats taken. ` : ""}
+                  You travel with other GoLoc travelers. Everyone has their own PIN.
+                </T>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+            </Row>
+          </Card>
+        ) : null}
         {(b.status === "in_progress" || (b.status === "confirmed" && tripDay)) && (
           <Button title={b.status === "in_progress" ? "Open live trip" : "Track your Captain"} icon="navigate" onPress={() => router.push(`/trip/${b.id}`)} />
         )}
@@ -291,6 +311,25 @@ export default function BookingScreen() {
   );
 }
 
+function PinCard({ label, pin, body, footer }: { label: string; pin: string; body: string; footer?: React.ReactNode }) {
+  return (
+    <Card style={styles.pinCard}>
+      <View style={styles.pinIcon}><Ionicons name="key" size={20} color={palette.marigold} /></View>
+      <T variant="label" color={palette.marigold} center>{label}</T>
+      <View style={{ alignItems: "center", marginVertical: space.lg }}>
+        <PinCode pin={pin} />
+      </View>
+      <T variant="small" color={palette.onDarkMuted} center style={{ paddingHorizontal: space.sm }}>{body}</T>
+      {footer ? (
+        <>
+          <View style={styles.pinRule} />
+          <View style={{ alignItems: "center" }}>{footer}</View>
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
 const Detail = ({ label, value }: { label: string; value: string }) => (
   <View style={{ marginBottom: space.md }}>
     <T variant="label">{label}</T>
@@ -299,7 +338,13 @@ const Detail = ({ label, value }: { label: string; value: string }) => (
 );
 
 const styles = StyleSheet.create({
-  pin: { fontSize: 44, letterSpacing: 12, color: palette.white, fontWeight: "800", marginVertical: space.sm },
+  pinCard: { backgroundColor: palette.night, paddingVertical: space.xl, alignItems: "stretch" },
+  pinIcon: {
+    width: 44, height: 44, borderRadius: 22, alignSelf: "center", alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,178,26,0.14)", marginBottom: space.md,
+  },
+  pinRule: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.16)", marginVertical: space.lg },
+  groupIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.rickshawSoft, alignItems: "center", justifyContent: "center" },
   line: { justifyContent: "space-between", paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
 });
