@@ -167,6 +167,7 @@ REST_FRAMEWORK = {
         "chat": config("THROTTLE_CHAT", default="40/min"),
         "upload": config("THROTTLE_UPLOAD", default="30/hour"),
         "booking_request": config("THROTTLE_BOOKING_REQUEST", default="20/hour"),
+        "coupon": config("THROTTLE_COUPON", default="60/hour"),  # stops guessing coupon codes
         "itinerary_ai": config("THROTTLE_ITINERARY_AI", default="30/hour"),
         "ai_assist": config("THROTTLE_AI_ASSIST", default="120/hour"),
     },

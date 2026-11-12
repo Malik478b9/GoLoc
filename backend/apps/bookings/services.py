@@ -165,6 +165,9 @@ def accept(booking, captain_user, role="captain") -> Booking:
         booking.save(update_fields=["status", "accepted_at", "payment_due_at", "updated_at"])
         log(booking, captain_user, role, "accepted", "Agency accepted for the Captain" if role == "agency" else "Captain accepted")
     booking.captain.touch()
+    from .offers import auto_apply
+
+    booking.total = auto_apply(booking).total
     notify(booking.traveler, "traveler", "booking_accepted", f"{booking.captain.name} accepted 🎉",
            f"Pay ₹{booking.total:,} within {settings.PAYMENT_WINDOW_MINUTES // 60} hours to confirm {booking.code}.",
            {"booking_id": booking.id})
@@ -232,14 +235,21 @@ def cancel(booking, user, role: str, reason: str, refund_percent: int | None = N
             _require(booking, S.REQUESTED, S.ACCEPTED, S.CONFIRMED, S.IN_PROGRESS, message="This trip can't be cancelled now.")
         was_paid = booking.is_paid
         percent = refund_percent if refund_percent is not None else pricing.refund_percent_for(booking, role)
-        amount = pricing.refund_amount(booking, percent) if was_paid else 0
+        amount, voucher_back = pricing.refund_split(booking, percent) if was_paid else (0, 0)
         booking.status = S.CANCELLED
         booking.cancelled_by = role
         booking.cancel_reason = reason[:300]
         booking.cancelled_at = timezone.now()
         booking.refund_percent = percent if was_paid else None
         booking.save(update_fields=["status", "cancelled_by", "cancel_reason", "cancelled_at", "refund_percent", "updated_at"])
-        log(booking, user, role, "cancelled", reason or "Cancelled", refund_percent=percent, refund_amount=amount)
+        log(booking, user, role, "cancelled", reason or "Cancelled", refund_percent=percent, refund_amount=amount,
+            voucher_back=voucher_back)
+        from . import offers
+
+        if not was_paid:
+            offers.release_unpaid(booking)
+        elif voucher_back:
+            offers.give_back(booking, voucher_back)
     # After the cancel is committed: a gateway hiccup must not undo the cancellation
     # (a failed refund is recorded and Admin is alerted to retry).
     if amount:
@@ -249,6 +259,8 @@ def cancel(booking, user, role: str, reason: str, refund_percent: int | None = N
     why = reason or f"Cancelled by the {role}."
     if role != "traveler":
         refund_note = f" ₹{amount:,} will be refunded in 5–7 working days." if amount else ""
+        if voucher_back:
+            refund_note += f" ₹{voucher_back:,} is back on your gift voucher."
         notify(booking.traveler, "traveler", "booking_cancelled", f"{booking.code} was cancelled", why + refund_note,
                {"booking_id": booking.id})
     if role != "captain" and notify_captain:
@@ -262,9 +274,11 @@ def cancel(booking, user, role: str, reason: str, refund_percent: int | None = N
 
 def cancellation_preview(booking, role) -> dict:
     percent = pricing.refund_percent_for(booking, role)
+    cash, voucher = pricing.refund_split(booking, percent) if booking.is_paid else (0, 0)
     return {
         "refund_percent": percent,
-        "refund_amount": pricing.refund_amount(booking, percent) if booking.is_paid else 0,
+        "refund_amount": cash,
+        "voucher_back": voucher,
         "schedule": pricing.refund_schedule_for_display(),
     }
 
@@ -368,6 +382,9 @@ def expire_stale(now=None) -> int:
             booking.cancel_reason = why
             booking.save(update_fields=["status", "cancel_reason", "updated_at"])
             log(booking, None, "system", "expired", why)
+            from .offers import release_unpaid
+
+            release_unpaid(booking)
             count += 1
         notify(booking.traveler, "traveler", "booking_expired", f"{booking.code} expired", why, {"booking_id": booking.id})
         notify(booking.captain.user, "captain", "booking_expired", f"{booking.code} expired", why, {"booking_id": booking.id})

@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from django.views.static import serve
 
+from apps.bookings.offer_views import MyVouchersView
 from apps.captains.urls import captain_urlpatterns, public_urlpatterns
 from apps.itineraries.views import PublicItineraryView, document_page, poster_page
 from apps.payments.urls import page_urlpatterns as pay_pages
@@ -32,6 +33,7 @@ api = [
     path("captains/", include(public_urlpatterns)),
     path("bookings/", include("apps.bookings.urls")),
     path("groups/", include("apps.bookings.group_urls")),
+    path("vouchers/", MyVouchersView.as_view(), name="my-vouchers"),
     path("payments/", include("apps.payments.urls")),
     path("trips/", include("apps.trips.urls")),
     path("social/", include("apps.social.urls")),

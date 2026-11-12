@@ -187,7 +187,36 @@ export type Booking = {
   created_at: string;
   /** Set when these are seats on a Captain's group departure, shared with other travelers. */
   group?: BookingGroup | null;
+  /** Traveler only. Coupon money off the fare, and the part paid from a gift voucher. `total` is what's left to pay. */
+  discount?: number;
+  voucher_amount?: number;
+  coupon?: { code: string; title: string } | null;
 };
+
+export type GiftVoucher = {
+  code: string;
+  amount: number;
+  balance: number;
+  message: string;
+  expires_at: string;
+  status: "active" | "cancelled";
+  usable: boolean;
+  created_at: string;
+};
+
+export type CouponOffer = {
+  code: string;
+  title: string;
+  description: string;
+  /** Rupees it takes off this booking (0 when not eligible). */
+  discount: number;
+  eligible: boolean;
+  /** Why not, when not eligible. */
+  reason: string;
+  applied: boolean;
+};
+
+export type BookingOffers = { coupons: CouponOffer[]; vouchers: GiftVoucher[] };
 
 export type BookingGroup = {
   id: string;

@@ -72,11 +72,22 @@ def refund_percent_for(booking, cancelled_by: str, now=None) -> int:
     return 0
 
 
-def refund_amount(booking, percent: int) -> int:
-    """Fare refunds per schedule; insurance is refunded in full when the trip never started."""
-    fare_part = round(booking.fare * percent / 100)
+def refund_split(booking, percent: int) -> tuple[int, int]:
+    """
+    (back to card, back to gift voucher). The fare the traveler paid (after any coupon) refunds
+    per schedule; insurance in full when the trip never started. The voucher's share goes back
+    to the voucher in proportion to how much of the bill it paid.
+    """
+    fare_part = round((booking.fare - booking.discount) * percent / 100)
     insurance_part = booking.insurance_fee if booking.status != booking.Status.IN_PROGRESS else 0
-    return min(booking.total, fare_part + insurance_part)
+    entitled = min(booking.paid_value, fare_part + insurance_part)
+    voucher = round(entitled * booking.voucher_amount / booking.paid_value) if booking.voucher_amount and booking.paid_value else 0
+    return min(booking.total, entitled - voucher), voucher
+
+
+def refund_amount(booking, percent: int) -> int:
+    """What goes back to the traveler's card/UPI."""
+    return refund_split(booking, percent)[0]
 
 
 def refund_schedule_for_display():

@@ -23,6 +23,8 @@ def create_order(booking) -> Payment:
         raise conflict("This booking isn't waiting for payment.", "not_payable")
     if booking.payment_due_at and booking.payment_due_at < timezone.now():
         raise conflict("The payment window has closed. Please send a new request.", "payment_window_closed")
+    if booking.total == 0:
+        return None  # fully paid by gift voucher: see confirm_without_payment
     existing = booking.payments.filter(status=Payment.Status.CREATED, amount=booking.total).first()
     if existing:
         return existing
@@ -54,13 +56,31 @@ def capture(payment: Payment, payment_id: str, signature: str, method: str = "")
         payment.save(update_fields=["payment_id", "method", "status", "captured_at", "updated_at"])
 
         booking = Booking.objects.select_for_update().select_related("captain__user", "traveler").get(pk=payment.booking_id)
-        late = booking.status != Booking.Status.ACCEPTED
+        # Paid after the window closed, after a cancel, or for an old amount (offers changed since): never keep it.
+        late = booking.status != Booking.Status.ACCEPTED or payment.amount != booking.total
         if not late:
             booking_services.mark_paid(booking)
     if late:
         # Paid after the window closed or after a cancel — never keep the money.
         refund(booking, payment.amount, "Payment arrived after booking closed", None)
     return payment
+
+
+def confirm_without_payment(booking):
+    """The traveler's gift voucher covers the whole bill: confirm with no card payment."""
+    from apps.bookings import services as booking_services
+    from apps.bookings.models import Booking
+
+    with transaction.atomic():
+        booking = Booking.objects.select_for_update().select_related("captain__user", "traveler").get(pk=booking.pk)
+        if booking.status != Booking.Status.ACCEPTED:
+            raise conflict("This booking isn't waiting for payment.", "not_payable")
+        if booking.total != 0:
+            raise conflict("There's still an amount to pay.", "amount_due")
+        if booking.payment_due_at and booking.payment_due_at < timezone.now():
+            raise conflict("The payment window has closed. Please send a new request.", "payment_window_closed")
+        booking_services.mark_paid(booking)
+    return booking
 
 
 def mark_failed(payment: Payment, reason: str):

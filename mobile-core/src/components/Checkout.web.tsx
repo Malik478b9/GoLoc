@@ -35,7 +35,14 @@ export function useCheckout(onDone: (r: PayResult) => void) {
     done.current = false;
     setStarting(true);
     try {
-      const order = await api.post<Order>(`/payments/bookings/${bookingRef}/order/`);
+      const order = await api.post<Order & { paid?: boolean }>(`/payments/bookings/${bookingRef}/order/`);
+      if (order.paid) {
+        // A gift voucher covered everything: nothing to pay.
+        win?.close();
+        done.current = true;
+        onDone("success");
+        return;
+      }
       if (win && !win.closed) {
         win.location.href = order.checkout_url;
       } else {

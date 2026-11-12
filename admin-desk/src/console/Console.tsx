@@ -8,6 +8,7 @@ import Dashboard from "./Dashboard";
 import { ToastHost, toast, useApi, useRoute } from "./lib";
 import { Moderation } from "./Moderation";
 import { Payouts } from "./Money";
+import { Offers } from "./Offers";
 import { Audit, Cities, Users } from "./Platform";
 import { SOSDetail, SOSList } from "./Safety";
 import { Tickets } from "./Tickets";
@@ -22,6 +23,7 @@ const NAV: { path: string; label: string; icon: string; mobile?: boolean; badge?
   { path: "bookings", label: "Bookings", icon: "▣", mobile: true },
   { path: "payouts", label: "Payouts & refunds", icon: "₹", badge: "payouts" },
   { path: "tickets", label: "Disputes & help", icon: "⚖", badge: "tickets_open" },
+  { path: "offers", label: "Offers & vouchers", icon: "%" },
   { path: "moderation", label: "Reels & reviews", icon: "☆" },
   { path: "users", label: "Users", icon: "☺" },
   { path: "cities", label: "Cities & emergency", icon: "⌖" },
@@ -76,6 +78,7 @@ export default function Console({ user, onLogout }: { user: User; onLogout: () =
     case "moderation": page = <Moderation />; break;
     case "users": page = <Users />; break;
     case "cities": page = <Cities />; break;
+    case "offers": page = <Offers />; break;
     case "audit": page = <Audit />; break;
     default: page = <Dashboard />;
   }

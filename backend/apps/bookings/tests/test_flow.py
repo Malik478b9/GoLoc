@@ -229,7 +229,8 @@ class RefundPolicyTests(FlowBase):
         self.assertEqual(preview.status_code, 200)
         res = self._cancel(b, 30)
         self.assertEqual(res.data["refund_percent"], 50)
-        self.assertEqual(Refund.objects.get(booking=b).amount, round(b.fare * 0.5) + b.insurance_fee)
+        # Half of the fare actually paid (after the first-trip offer) plus insurance.
+        self.assertEqual(Refund.objects.get(booking=b).amount, round((b.fare - b.discount) * 0.5) + b.insurance_fee)
 
     def test_traveler_cancel_last_minute_only_insurance(self):
         b = self.booked_and_paid()

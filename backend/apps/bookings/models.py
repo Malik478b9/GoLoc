@@ -70,7 +70,7 @@ class Booking(models.Model):
     note = models.CharField(max_length=1000, blank=True)
     service_snapshot = models.JSONField(default=dict, help_text="What was sold, frozen at request time.")
 
-    # Money, whole rupees. total = fare + insurance_fee. commission + captain_net = fare.
+    # Money, whole rupees. total = fare + insurance_fee - discount - voucher_amount. commission + captain_net = fare.
     fare = models.PositiveIntegerField()
     insurance_fee = models.PositiveIntegerField(default=0)
     total = models.PositiveIntegerField()
@@ -78,6 +78,14 @@ class Booking(models.Model):
     captain_net = models.PositiveIntegerField()
     insurance_premium = models.PositiveIntegerField(default=0, help_text="Our cost to the insurer.")
     insurance_policy_no = models.CharField(max_length=32, blank=True)
+    # Offers. GoLoc funds both, so commission and captain_net never change.
+    #   coupon  -> `discount` off the fare
+    #   voucher -> `voucher_amount` paid from the traveler's gift-voucher balance
+    # total is what's left to pay by card/UPI: fare + insurance_fee - discount - voucher_amount.
+    coupon = models.ForeignKey("bookings.Coupon", null=True, blank=True, on_delete=models.PROTECT, related_name="bookings")
+    discount = models.PositiveIntegerField(default=0)
+    voucher = models.ForeignKey("bookings.GiftVoucher", null=True, blank=True, on_delete=models.PROTECT, related_name="bookings")
+    voucher_amount = models.PositiveIntegerField(default=0)
 
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.REQUESTED)
     cancelled_by = models.CharField(max_length=10, blank=True)
@@ -112,7 +120,10 @@ class Booking(models.Model):
         ]
         constraints = [
             models.CheckConstraint(condition=models.Q(end_date__gte=models.F("start_date")), name="booking_dates_ordered"),
-            models.CheckConstraint(condition=models.Q(total=models.F("fare") + models.F("insurance_fee")), name="booking_total_adds_up"),
+            models.CheckConstraint(
+                condition=models.Q(total=models.F("fare") + models.F("insurance_fee") - models.F("discount") - models.F("voucher_amount")),
+                name="booking_total_adds_up"),
+            models.CheckConstraint(condition=models.Q(discount=0) | models.Q(discount__lt=models.F("fare")), name="booking_discount_below_fare"),
         ]
 
     def __str__(self):
@@ -125,6 +136,11 @@ class Booking(models.Model):
     @property
     def is_paid(self):
         return self.status in self.PAID
+
+    @property
+    def paid_value(self) -> int:
+        """What the traveler actually put in: card/UPI plus voucher balance (fare after coupon, plus insurance)."""
+        return self.total + self.voucher_amount
 
 
 class GroupTrip(models.Model):
@@ -188,6 +204,123 @@ class GroupTrip(models.Model):
 
     def seats_paid(self) -> int:
         return sum(self.bookings.filter(status__in=self.PAID_STATUSES).values_list("guests", flat=True))
+
+
+def _voucher_code():
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    pick = lambda n: "".join(secrets.choice(alphabet) for _ in range(n))  # noqa: E731
+    return f"GV-{pick(4)}-{pick(4)}"
+
+
+class Coupon(models.Model):
+    """
+    A discount GoLoc's admins set up. Takes money off the trip fare (never insurance);
+    GoLoc pays for it, so the Captain still earns their full share.
+
+    A coupon counts as used while a booking holds it waiting for payment, and for good
+    once that booking is paid. If payment never happens it's free again.
+    """
+
+    class Kind(models.TextChoices):
+        PERCENT = "percent", "Percent off"
+        FLAT = "flat", "Flat rupees off"
+        FREE_SEAT = "free_seat", "Free seats (group trips)"
+
+    class TripKind(models.TextChoices):
+        ANY = "", "Any trip"
+        PRIVATE = "private", "Private trips only"
+        GROUP = "group", "Group trips only"
+
+    id = models.BigAutoField(primary_key=True)
+    code = models.CharField(max_length=20, unique=True, help_text="What travelers type, e.g. FIRSTTRIP. Stored in capitals.")
+    title = models.CharField(max_length=80, help_text='Shown to travelers, e.g. "10% off your first trip".')
+    description = models.CharField(max_length=300, blank=True)
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PERCENT)
+    value = models.PositiveIntegerField(validators=[MinValueValidator(1)],
+                                        help_text="Percent (1-100), rupees, or number of free seats.")
+    max_discount = models.PositiveIntegerField(null=True, blank=True, help_text="Most it can take off, in rupees. Empty = no cap.")
+    min_fare = models.PositiveIntegerField(default=0, help_text="Only on trips whose fare is at least this.")
+    min_guests = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)],
+                                                  help_text="Only when booking at least this many seats/guests.")
+
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    max_uses = models.PositiveIntegerField(null=True, blank=True, help_text="Total uses across everyone. Empty = unlimited.")
+    per_user_limit = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
+
+    first_trip_only = models.BooleanField(default=False, help_text="Only for travelers who've never paid for a trip.")
+    auto_apply = models.BooleanField(default=False, help_text="Applied by itself when a traveler can use it, no code needed.")
+    is_public = models.BooleanField(default=True, help_text="Listed under offers at payment. Off = secret code.")
+    is_active = models.BooleanField(default=True)
+
+    city = models.ForeignKey("cities.City", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    captain = models.ForeignKey("captains.CaptainProfile", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    trip_kind = models.CharField(max_length=8, choices=TripKind.choices, default=TripKind.ANY, blank=True)
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(condition=~models.Q(kind="percent") | models.Q(value__lte=100), name="coupon_percent_max_100"),
+        ]
+
+    def __str__(self):
+        return self.code
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+    def discount_for(self, fare: int, guests: int) -> int:
+        """Rupees off this fare. Always leaves at least 1 rupee of fare."""
+        if self.kind == self.Kind.PERCENT:
+            off = round(fare * self.value / 100)
+        elif self.kind == self.Kind.FREE_SEAT:
+            off = (fare // max(1, guests)) * min(self.value, max(0, guests - 1))
+        else:
+            off = self.value
+        if self.max_discount:
+            off = min(off, self.max_discount)
+        return max(0, min(off, fare - 1))
+
+
+class GiftVoucher(models.Model):
+    """
+    A GoLoc gift voucher with a rupee balance, given free by GoLoc to one mobile number.
+    Only that number can use it. The balance carries over across trips until it runs out
+    or expires; a cancelled trip puts the voucher part back.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.BigAutoField(primary_key=True)
+    code = models.CharField(max_length=16, unique=True, default=_voucher_code)
+    phone_number = models.CharField(max_length=16, db_index=True, help_text="E.164. Only this number can use it.")
+    amount = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    balance = models.PositiveIntegerField()
+    message = models.CharField(max_length=200, blank=True, help_text="Shown to the person, e.g. Happy birthday!")
+    expires_at = models.DateTimeField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.CheckConstraint(condition=models.Q(balance__lte=models.F("amount")), name="voucher_balance_within_amount")]
+
+    def __str__(self):
+        return self.code
+
+    @property
+    def usable(self) -> bool:
+        return self.status == self.Status.ACTIVE and self.balance > 0 and self.expires_at > timezone.now()
 
 
 class BookingEvent(models.Model):

@@ -32,7 +32,13 @@ class BookingListSerializer(serializers.ModelSerializer):
         model = Booking
         fields = ["id", "code", "status", "status_label", "kind", "tier", "guests", "start_date", "end_date",
                   "start_time", "title", "captain", "traveler", "city_name", "agency_name", "fare", "total", "captain_net",
-                  "request_expires_at", "payment_due_at", "created_at", "group"]
+                  "request_expires_at", "payment_due_at", "created_at", "group", "discount", "voucher_amount", "coupon"]
+
+    coupon = serializers.SerializerMethodField()
+
+    def get_coupon(self, obj):
+        c = obj.coupon
+        return {"code": c.code, "title": c.title} if c else None
 
     def get_group(self, obj):
         """Set when this booking is seats on a group departure shared with other travelers."""
@@ -75,6 +81,10 @@ class BookingListSerializer(serializers.ModelSerializer):
         data = super().to_representation(obj)
         if self.role == "traveler":
             data.pop("captain_net", None)
+        elif self.role in {"captain", "agency"}:
+            # GoLoc pays for offers; the Captain's share doesn't change, so they don't need to see them.
+            for k in ("discount", "voucher_amount", "coupon"):
+                data.pop(k, None)
         return data
 
 

@@ -22,6 +22,7 @@ export default function Profile() {
       <Card padded={false} style={{ overflow: "hidden", paddingVertical: space.xs }}>
         <ListItem icon="person-outline" title="Profile & emergency contact" subtitle="Who we call if you raise an SOS" onPress={() => router.push("/edit-profile")} />
         <ListItem icon="heart-outline" title="Saved" subtitle="Captains and trips you liked" onPress={() => router.push("/saved")} />
+        <ListItem icon="gift-outline" title="Gift vouchers" subtitle="Your GoLoc balance and vouchers" onPress={() => router.push("/vouchers")} />
         <ListItem icon="notifications-outline" title="Notifications" onPress={() => router.push("/notifications")} />
       </Card>
 

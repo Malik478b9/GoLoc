@@ -8,7 +8,8 @@ import { palette } from "../theme";
 import { toastError } from "../ui/feedback";
 import { Header } from "../ui/layout";
 
-type Order = { checkout_url: string; result_path: string };
+/** `paid` = a gift voucher covered the whole bill: confirmed with nothing to pay. */
+type Order = { checkout_url: string; result_path: string; paid?: boolean };
 export type PayResult = "success" | "failed" | "cancelled" | "error";
 
 /**
@@ -23,7 +24,9 @@ export function useCheckout(onDone: (r: PayResult) => void) {
   const start = async (bookingRef: string) => {
     setStarting(true);
     try {
-      setOrder(await api.post<Order>(`/payments/bookings/${bookingRef}/order/`));
+      const o = await api.post<Order>(`/payments/bookings/${bookingRef}/order/`);
+      if (o.paid) onDone("success");
+      else setOrder(o);
     } catch (e) {
       toastError(e);
     } finally {

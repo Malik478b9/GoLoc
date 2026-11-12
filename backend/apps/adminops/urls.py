@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import agency_views as av
+from . import offers as of
 from . import views as v
 
 urlpatterns = [
@@ -44,4 +45,8 @@ urlpatterns = [
     path("emergency/", v.EmergencyListView.as_view()),
     path("emergency/<int:pk>/", v.EmergencyDetailView.as_view()),
     path("audit/", v.AuditListView.as_view()),
+    path("coupons/", of.CouponListView.as_view()),
+    path("coupons/<int:pk>/", of.CouponDetailView.as_view()),
+    path("vouchers/", of.VoucherListView.as_view()),
+    path("vouchers/<int:pk>/cancel/", of.VoucherCancelView.as_view()),
 ]

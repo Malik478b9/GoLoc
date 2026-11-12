@@ -141,6 +141,9 @@ def join(traveler, group, *, guests: int, guest_details=None, note="") -> Bookin
         )
         booking.save()
         log(booking, traveler, "traveler", "joined_group", f"Joined group trip {group.code} · {guests} seat(s)")
+    from .offers import auto_apply
+
+    booking = auto_apply(booking)
     notify(traveler, "traveler", "group_joined", f"Seats held on {group.title}",
            f"Pay ₹{booking.total:,} within {settings.GROUP_PAYMENT_MINUTES} minutes to keep your {guests} seat(s).",
            {"booking_id": booking.id})

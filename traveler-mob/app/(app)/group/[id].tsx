@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
   api, Avatar, Banner, BookingDetail, Button, Card, dateRange, ErrorView, Field, GroupTrip, Loading, longDate, money, palette,
-  Rating, Row, Screen, SeatsBar, space, Stepper, T, time12, toast, toastError, useAuth, useCheckout,
+  Rating, Row, Screen, SeatsBar, space, Stepper, T, time12, toast, toastError, useAuth,
 } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
@@ -11,7 +11,7 @@ import { Image, StyleSheet, View } from "react-native";
 type Guest = { name: string; phone: string };
 const tenDigits = (phone?: string | null) => (phone ?? "").replace(/\D/g, "").slice(-10);
 
-/** One group departure: what it is, who leads it, how full it is, and join + pay in one go. */
+/** One group departure: what it is, who leads it, how full it is. Joining holds seats; payment (with offers) is on the booking. */
 export default function GroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const qc = useQueryClient();
@@ -26,27 +26,20 @@ export default function GroupScreen() {
   const missingName = people.findIndex((g) => g.name.trim().length < 2);
   const badPhone = people.findIndex((g, i) => (i === 0 ? tenDigits(g.phone).length !== 10 : g.phone.trim() !== "" && tenDigits(g.phone).length !== 10));
 
-  const [joined, setJoined] = useState<string | null>(null);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["group", id] });
     qc.invalidateQueries({ queryKey: ["groups"] });
     qc.invalidateQueries({ queryKey: ["bookings"] });
   };
-  const checkout = useCheckout((r) => {
-    refresh();
-    if (r === "success") toast("Payment received. You're in the group!", "success");
-    else if (r === "failed") toast("Payment failed. No money was taken.", "error");
-    if (joined) router.replace(`/booking/${joined}`);
-  });
   const join = useMutation({
     mutationFn: () => api.post<BookingDetail>(`/groups/${id}/join/`, {
       guests: seats,
       guest_details: people.map((g) => ({ name: g.name.trim(), phone: g.phone.trim() })),
     }),
     onSuccess: (b) => {
-      setJoined(b.id);
       refresh();
-      checkout.start(b.id);
+      toast(b.discount ? `Seats held · ${b.coupon?.code} saves you ${money(b.discount)}` : "Seats held. Pay to confirm.", "success");
+      router.replace(`/booking/${b.id}`);
     },
     onError: (e) => {
       refresh();
@@ -72,7 +65,7 @@ export default function GroupScreen() {
         <T variant="caption">{seats} seat{seats > 1 ? "s" : ""} + insurance</T>
         <T variant="title">{money(fare + insurance)}</T>
       </View>
-      <Button title="Join & pay" icon="people" style={{ flex: 1.3 }} loading={join.isPending || checkout.starting}
+      <Button title="Hold my seats" icon="people" style={{ flex: 1.3 }} loading={join.isPending}
         disabled={missingName >= 0 || badPhone >= 0} onPress={() => join.mutate()} />
     </Row>
   ) : undefined;
@@ -184,11 +177,11 @@ export default function GroupScreen() {
           <Row style={styles.line}><T variant="small">{seats} × {money(g.price_per_seat)}</T><T variant="small">{money(fare)}</T></Row>
           <Row style={styles.line}><T variant="small">Trip insurance</T><T variant="small">{money(insurance)}</T></Row>
           <Row style={styles.line}><T variant="bodyBold">Total</T><T variant="bodyBold">{money(fare + insurance)}</T></Row>
-          <T variant="caption" style={{ marginTop: space.sm }}>Your seats are held for 30 minutes while you pay.</T>
+          {seats >= 4 ? <T variant="small" color={palette.success} style={{ marginTop: space.sm }}>Booking 4 seats? Your first time, the 4th seat is free (PAY3GET4).</T> : null}
+          <T variant="caption" style={{ marginTop: space.sm }}>Your seats are held for 30 minutes. Apply coupons or gift vouchers on the next step, then pay.</T>
         </Card>
       ) : null}
       <T variant="caption" center style={{ marginTop: space.lg }}>{dateRange(g.start_date, g.end_date)} · {g.code}</T>
-      {checkout.element}
     </Screen>
   );
 }

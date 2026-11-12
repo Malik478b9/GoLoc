@@ -54,6 +54,10 @@ class CreateOrderView(APIView):
     def post(self, request, ref):
         booking = get_booking(request, ref)
         payment = services.create_order(booking)
+        if payment is None:
+            # Fully covered by a gift voucher: confirmed straight away, nothing to pay.
+            services.confirm_without_payment(booking)
+            return Response({"paid": True, "amount": 0}, status=status.HTTP_201_CREATED)
         return Response({
             "payment_id": payment.id, "order_id": payment.order_id, "amount": payment.amount, "gateway": payment.gateway,
             "key_id": get_gateway(payment.gateway).key_id,

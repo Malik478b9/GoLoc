@@ -9,6 +9,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 
+import { OffersRow } from "../../../lib/offers";
+
 type Preview = { refund_percent: number; refund_amount: number };
 
 export default function BookingScreen() {
@@ -106,7 +108,9 @@ export default function BookingScreen() {
                 ? `Pay ${money(b.total)} within ${timeLeft(b.payment_due_at)} or the seats go back to others. Paying unlocks trip insurance, live tracking and SOS.`
                 : `Pay ${money(b.total)} within ${timeLeft(b.payment_due_at)} to confirm. Paying unlocks trip insurance, live tracking and SOS.`}
             </T>
-            <Button title={`Pay ${money(b.total)}`} icon="lock-closed" loading={checkout.starting} onPress={() => checkout.start(b.id)} style={{ marginTop: space.md }} />
+            <OffersRow b={b} />
+            <Button title={b.total === 0 ? "Confirm with gift voucher" : `Pay ${money(b.total)}`} icon={b.total === 0 ? "gift" : "lock-closed"}
+              loading={checkout.starting} onPress={() => checkout.start(b.id)} style={{ marginTop: space.md }} />
           </Card>
         )}
         {b.status === "confirmed" && b.start_pin ? (
@@ -256,8 +260,14 @@ export default function BookingScreen() {
         ) : null}
         <T variant="label" style={{ marginBottom: 4 }}>Payment</T>
         <Row style={styles.line}><T variant="small">Trip fare</T><T variant="small">{money(b.fare)}</T></Row>
+        {b.discount ? (
+          <Row style={styles.line}><T variant="small" color={palette.success}>Coupon {b.coupon?.code}</T><T variant="small" color={palette.success}>− {money(b.discount)}</T></Row>
+        ) : null}
         <Row style={styles.line}><T variant="small">Trip insurance</T><T variant="small">{money(b.insurance_fee)}</T></Row>
-        <Row style={styles.line}><T variant="bodyBold">Total</T><T variant="bodyBold">{money(b.total)}</T></Row>
+        {b.voucher_amount ? (
+          <Row style={styles.line}><T variant="small" color={palette.success}>Gift voucher</T><T variant="small" color={palette.success}>− {money(b.voucher_amount)}</T></Row>
+        ) : null}
+        <Row style={styles.line}><T variant="bodyBold">{b.voucher_amount ? "Paid by card / UPI" : "Total"}</T><T variant="bodyBold">{money(b.total)}</T></Row>
       </Card>
 
       {/* ----- timeline ----- */}
