@@ -1,4 +1,4 @@
-import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, GroupTrip, Paginated, Place, Post, useAuth, UserPlace } from "@goloc/core";
+import { api, CaptainCard, CaptainDetail, City, DiscoverFeed, GroupTrip, Paginated, Place, Post, todayIST, useAuth, UserPlace } from "@goloc/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 
@@ -118,3 +118,16 @@ export function useGroupTrips(params: { city?: string; captain?: string }) {
     staleTime: 60_000,
   });
 }
+
+// ---------------------------------------------------------------- trip plan
+/**
+ * The dates and group size the traveler already chose (Explore's date filter or Build my trip).
+ * Carried into Captain profiles and the booking form so nobody types them twice.
+ */
+export type TripPlan = { start?: string; end?: string; guests?: number };
+export const useTripPlan = create<TripPlan & { setPlan: (p: TripPlan) => void }>((set) => ({
+  setPlan: (p) => set(p),
+}));
+
+/** The date if it's today or later (IST), else undefined: a remembered plan never pre-fills a past day. */
+export const upcoming = (iso?: string) => (iso && iso >= todayIST() ? iso : undefined);

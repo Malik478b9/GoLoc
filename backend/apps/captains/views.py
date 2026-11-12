@@ -28,7 +28,7 @@ from . import services
 from .models import BlockedDate, CaptainProfile, PayoutAccount, SavedCaptain, ServiceOffer, Vehicle, VerificationDocument
 from .serializers import (CATEGORIES, LANGUAGES, BlockedDateSerializer, CaptainCardSerializer, CaptainDetailSerializer,
                           DocumentSerializer, MyProfileSerializer, PayoutAccountSerializer, PublicServiceSerializer,
-                          ServiceSerializer, VehicleSerializer, WeeklySlotSerializer)
+                          ServiceSerializer, VehicleSerializer)
 
 
 def my_profile(request) -> CaptainProfile:
@@ -254,7 +254,7 @@ class DocumentListView(generics.ListCreateAPIView):
 
 
 class AvailabilityView(APIView):
-    """GET weekly + blocked + capacity. PUT {"weekly": [...7], "max_bookings_per_day": n}"""
+    """GET days off + daily capacity. PUT {"max_bookings_per_day": n}. Captains work every day unless they block a date."""
 
     permission_classes = [IsCaptain]
 
@@ -264,13 +264,6 @@ class AvailabilityView(APIView):
 
     def put(self, request):
         profile = my_profile(request)
-        weekly = request.data.get("weekly")
-        if weekly is not None:
-            s = WeeklySlotSerializer(data=weekly, many=True)
-            s.is_valid(raise_exception=True)
-            with transaction.atomic():
-                for row in s.validated_data:
-                    profile.weekly_slots.update_or_create(weekday=row["weekday"], defaults=row)
         cap = request.data.get("max_bookings_per_day")
         if cap is not None:
             try:
@@ -287,7 +280,6 @@ class AvailabilityView(APIView):
     def _data(profile):
         today = timezone.localdate()
         return {
-            "weekly": WeeklySlotSerializer(profile.weekly_slots.all(), many=True).data,
             "blocked": BlockedDateSerializer(profile.blocked_dates.filter(date__gte=today), many=True).data,
             "max_bookings_per_day": profile.max_bookings_per_day,
         }
@@ -548,7 +540,7 @@ class NextAvailableView(APIView):
 class CaptainCalendarView(APIView):
     """
     GET /captains/<id>/calendar/?from=YYYY-MM-DD&days=60
-    → unavailable dates (for pickers), every day's status (for the month view) and the weekly hours.
+    → unavailable dates (for pickers), and every day's status (for the month view).
     """
 
     permission_classes = [AllowAny]
@@ -566,7 +558,6 @@ class CaptainCalendarView(APIView):
             "from": start, "to": end,
             "unavailable": [d["date"] for d in days_out if d["status"] != "free"],
             "days": days_out,
-            "weekly": WeeklySlotSerializer(captain.weekly_slots.all(), many=True).data,
         })
 
 
@@ -639,7 +630,7 @@ class MatchView(APIView):
         if d["kind"] == "guide" and trip_days > settings.GUIDE_MAX_DAYS:
             raise bad_request(f"A guide can be booked for up to {settings.GUIDE_MAX_DAYS} days at a time.", "too_many_days")
         candidates = (bookable_captains().filter(city=d["city"]).order_by("-rating_avg", "-trips_completed")
-                      .prefetch_related("services", "weekly_slots"))[:40]
+                      .prefetch_related("services"))[:40]
         results = []
         for captain in candidates:
             fits = [sv for sv in captain.services.all() if sv.is_active and sv.kind == d["kind"] and sv.max_guests >= d["guests"]

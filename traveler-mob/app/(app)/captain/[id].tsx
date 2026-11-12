@@ -12,13 +12,24 @@ import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnim
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ReelTile } from "../../../lib/cards";
-import { toggleSave, useCaptain, useCompare, useGroupTrips } from "../../../lib/data";
+import { toggleSave, upcoming, useCaptain, useCompare, useGroupTrips, useTripPlan } from "../../../lib/data";
 
 const HERO_H = 240;
 const GAP = space.xxl + space.sm;
 
-/** Opens the booking screen, starting on the day picked from the availability calendar if any. */
-const book = (serviceId: string, date?: string) => router.push({ pathname: "/book/[serviceId]", params: { serviceId, ...(date ? { date } : {}) } });
+/**
+ * Opens the booking screen with the traveler's dates and group size already filled in:
+ * the day picked on the calendar, else the dates they searched with.
+ */
+const book = (serviceId: string, date?: string) => {
+  const plan = useTripPlan.getState();
+  const start = date ?? upcoming(plan.start);
+  const end = start && start === plan.start ? plan.end : undefined;
+  router.push({
+    pathname: "/book/[serviceId]",
+    params: { serviceId, ...(start ? { date: start } : {}), ...(end ? { end } : {}), ...(plan.guests ? { guests: String(plan.guests) } : {}) },
+  });
+};
 
 function ServiceCard({ s, date }: { s: Service; date?: string }) {
   const pkg = s.kind === "package";
@@ -71,7 +82,7 @@ export default function CaptainProfile() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"trips" | "itineraries" | "reels" | "photos" | "reviews">("trips");
   // A free day tapped on the availability calendar; carried into booking.
-  const [picked, setPicked] = useState<string | undefined>();
+  const [picked, setPicked] = useState<string | undefined>(() => upcoming(useTripPlan.getState().start));
   // Full lists load when their tab opens; the profile itself carries the latest few.
   const media = useQuery({
     queryKey: ["captain-posts", id, tab],
@@ -214,7 +225,7 @@ export default function CaptainProfile() {
             <CaptainAvailability captainId={c.id} selected={picked} onPick={(iso) => setPicked(iso === picked ? undefined : iso)} />
             {picked ? (
               <View style={styles.picked}>
-                <T variant="bodyBold">{longDate(picked)} is free</T>
+                <T variant="bodyBold">{longDate(picked)}</T>
                 {c.services.length === 1 ? (
                   <Button title="Book this day" icon="calendar" small style={{ marginTop: space.md }} onPress={() => book(c.services[0].id, picked)} />
                 ) : (

@@ -13,7 +13,8 @@ MOTOR_KINDS = {"car", "suv", "motorcycle", "tempo"}
 
 def create_profile(user, city, **fields) -> CaptainProfile:
     profile = CaptainProfile.objects.create(code=next_public_code(CAPTAIN_PREFIX), user=user, city=city, **fields)
-    WeeklySlot.objects.bulk_create([WeeklySlot(captain=profile, weekday=d, is_available=d < 6) for d in range(7)])
+    # Travel happens every day, weekends most of all: a Captain is free every day unless they block a date or go offline.
+    WeeklySlot.objects.bulk_create([WeeklySlot(captain=profile, weekday=d, is_available=True) for d in range(7)])
     return profile
 
 
@@ -31,7 +32,6 @@ class _Calendar:
         from apps.bookings.models import Booking
 
         self.captain = captain
-        self.slots = {s.weekday: s for s in captain.weekly_slots.all()}
         self.blocked = set(captain.blocked_dates.filter(date__range=(start, end)).values_list("date", flat=True))
         # Seats on a group departure don't hold slots of their own: the departure holds one.
         busy = Booking.objects.filter(captain=captain, status__in=Booking.HOLDS_SLOT, start_date__lte=end, end_date__gte=start,
@@ -44,10 +44,7 @@ class _Calendar:
         self.busy = list(busy.values_list("start_date", "end_date")) + list(groups.values_list("start_date", "end_date"))
 
     def status(self, day) -> str:
-        """free | off (not a working weekday) | blocked (day off) | booked (no capacity left)."""
-        slot = self.slots.get(day.weekday())
-        if slot is None or not slot.is_available:
-            return "off"
+        """free | blocked (a day off the Captain picked) | booked (no capacity left). Every weekday counts the same."""
         if day in self.blocked:
             return "blocked"
         if sum(1 for s, e in self.busy if s <= day <= e) >= self.captain.max_bookings_per_day:
@@ -57,7 +54,6 @@ class _Calendar:
     def reason(self, day) -> str | None:
         name = self.captain.name
         return {
-            "off": f"{name} doesn't work on {day:%A}s.",
             "blocked": f"{name} is unavailable on {day:%d %b}.",
             "booked": f"{name} is fully booked on {day:%d %b}.",
         }.get(self.status(day))
@@ -114,10 +110,6 @@ def free_for_trip(capacity: dict, start, end) -> set:
 
     ids = list(capacity)
     days = list(dates_between(start, end))
-    needed = {d.weekday() for d in days}
-    working = defaultdict(set)
-    for cid, weekday in WeeklySlot.objects.filter(captain_id__in=ids, is_available=True).values_list("captain_id", "weekday"):
-        working[cid].add(weekday)
     blocked = set(BlockedDate.objects.filter(captain_id__in=ids, date__range=(start, end)).values_list("captain_id", flat=True))
     busy = defaultdict(list)
     for cid, s, e in Booking.objects.filter(captain_id__in=ids, status__in=Booking.HOLDS_SLOT, start_date__lte=end,
@@ -130,7 +122,7 @@ def free_for_trip(capacity: dict, start, end) -> set:
         busy[cid].append((s, e))
     return {
         cid for cid, limit in capacity.items()
-        if cid not in blocked and needed <= working[cid]
+        if cid not in blocked
         and all(sum(1 for s, e in busy[cid] if s <= d <= e) < limit for d in days)
     }
 
@@ -160,7 +152,6 @@ def checklist(captain: CaptainProfile) -> dict:
         {"key": "photo", "label": "Profile photo", "done": bool(captain.avatar)},
         {"key": "service", "label": f"{agency.name} has listed a trip for you" if agency else "At least one service with prices",
          "done": captain.services.filter(is_active=True).exists()},
-        {"key": "availability", "label": "Weekly availability", "done": captain.weekly_slots.filter(is_available=True).exists()},
         {"key": "documents", "label": "Verification documents uploaded", "done": docs_uploaded},
         {"key": "payout", "label": f"Payouts go to {agency.name}" if agency else "UPI or bank account for payouts",
          "done": bool(agency) or hasattr(captain, "payout_account")},

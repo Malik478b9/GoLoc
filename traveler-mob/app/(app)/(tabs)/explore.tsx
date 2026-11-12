@@ -8,7 +8,7 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } 
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CaptainRow } from "../../../lib/cards";
-import { useCities, useCompare, useDiscovery } from "../../../lib/data";
+import { upcoming, useCities, useCompare, useDiscovery, useTripPlan } from "../../../lib/data";
 
 const CATEGORIES = ["food", "heritage", "culture", "adventure", "photography", "nature", "shopping", "spiritual", "nightlife", "family"];
 const SORTS = [
@@ -54,8 +54,10 @@ export default function Explore() {
   // "" = everyone, "captain" = does everything (stays, transport, packages), "guide" = walks with you, you plan the rest.
   const [type, setType] = useState<"" | "captain" | "guide">((params.type as "captain" | "guide") ?? "");
   // Arrival / departure: only locals free on every one of these days are listed.
-  const [start, setStart] = useState<string | undefined>();
-  const [end, setEnd] = useState<string | undefined>();
+  // Start from the dates the traveler already chose (e.g. in Build my trip); changes here are remembered too.
+  const setPlan = useTripPlan((p) => p.setPlan);
+  const [start, setStart] = useState<string | undefined>(() => upcoming(useTripPlan.getState().start));
+  const [end, setEnd] = useState<string | undefined>(() => (upcoming(useTripPlan.getState().start) ? useTripPlan.getState().end : undefined));
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [draft, setDraft] = useState<Filters>(NO_FILTERS);
   const [sheet, setSheet] = useState(false);
@@ -188,9 +190,9 @@ export default function Explore() {
 
       <Sheet visible={datesOpen} onClose={() => setDatesOpen(false)} title="When are you visiting?">
         <T variant="caption" style={{ marginBottom: space.md }}>We'll show only {noun}s free on every day you're there.</T>
-        <DateRangeCalendar start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} maxSpan={60} />
+        <DateRangeCalendar start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); setPlan({ ...useTripPlan.getState(), start: s, end: e ?? s }); }} maxSpan={60} />
         <Row gap={10} style={{ marginTop: space.lg }}>
-          <Button title="Any dates" kind="secondary" style={{ flex: 1 }} onPress={() => { setStart(undefined); setEnd(undefined); setDatesOpen(false); }} />
+          <Button title="Any dates" kind="secondary" style={{ flex: 1 }} onPress={() => { setStart(undefined); setEnd(undefined); setPlan({ ...useTripPlan.getState(), start: undefined, end: undefined }); setDatesOpen(false); }} />
           <Button title="Done" style={{ flex: 2 }} onPress={() => setDatesOpen(false)} />
         </Row>
       </Sheet>
@@ -213,7 +215,7 @@ export default function Explore() {
         </ScrollView>
         <Row gap={10} style={{ marginTop: space.sm }}>
           <Button title="Reset" kind="secondary" style={{ flex: 1 }} onPress={() => setDraft(NO_FILTERS)} />
-          <Button title="Show results" style={{ flex: 2 }} onPress={() => { setFilters(draft); setSheet(false); }} />
+          <Button title="Show results" style={{ flex: 2 }} onPress={() => { setFilters(draft); setPlan({ ...useTripPlan.getState(), guests: Number(draft.guests) || undefined }); setSheet(false); }} />
         </Row>
       </Sheet>
     </SafeAreaView>

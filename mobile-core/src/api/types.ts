@@ -79,15 +79,14 @@ export type CaptainCard = {
   saved?: boolean;
 };
 
+/** Captains work every day; a day is only unavailable when they blocked it or it's full. */
 export type DayStatus = "free" | "booked" | "blocked" | "off" | "past";
-export type WeeklySlot = { weekday: number; is_available: boolean; start_time: string; end_time: string };
 /** GET /captains/<id>/calendar/ */
 export type CaptainCalendar = {
   from: string;
   to: string;
   unavailable: string[];
   days: { date: string; status: DayStatus }[];
-  weekly: WeeklySlot[];
 };
 
 export type Review = {

@@ -66,11 +66,8 @@ def make_live_captain(name="Ahmed Khan", city_slug="hyderabad", price=3500, pack
 
 
 def next_weekday(days_ahead=5):
-    """A date at least `days_ahead` out that isn't a Sunday (default slots are Mon–Sat)."""
-    d = timezone.localdate() + timedelta(days=days_ahead)
-    while d.weekday() == 6:
-        d += timedelta(days=1)
-    return d
+    """A date `days_ahead` out. Captains work every day, so any weekday will do."""
+    return timezone.localdate() + timedelta(days=days_ahead)
 
 
 def reset():

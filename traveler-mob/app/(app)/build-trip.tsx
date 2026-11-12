@@ -8,7 +8,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { useCities, useCity } from "../../lib/data";
+import { useCities, useCity, useTripPlan } from "../../lib/data";
 
 type Match = {
   captain: CaptainCard;
@@ -48,7 +48,10 @@ export default function BuildTrip() {
       api.post<{ tier: string; results: Match[] }>("/captains/match/", {
         city: city ?? current?.slug, start_date: date, end_date: multiDay ? end : undefined, guests, kind, tier, interests, languages, budget: budget ? Number(budget) : null,
       }),
-    onSuccess: () => setStep(3),
+    onSuccess: () => {
+      useTripPlan.getState().setPlan({ start: date, end: multiDay ? end : date, guests });
+      setStep(3);
+    },
   });
   const free = (match.data?.results ?? []).filter((m) => m.available);
   const busy = (match.data?.results ?? []).filter((m) => !m.available);

@@ -7,6 +7,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
+import { upcoming, useTripPlan } from "../../../lib/data";
+
 type ServiceInfo = { service: Service; captain: CaptainCard; refund_schedule: { min_hours_before: number; fare_refund_percent: number }[] };
 type Tier = "normal" | "medium" | "lavish";
 type Guest = { name: string; phone: string };
@@ -22,10 +24,13 @@ export default function Book() {
   const isPackage = svc?.kind === "package";
   const isGuide = svc?.kind === "guide";
   const [tier, setTier] = useState<Tier>(presetTier ?? "medium");
-  const [guests, setGuests] = useState(Number(presetGuests ?? 2));
-  const [date, setDate] = useState<string | undefined>(presetDate);
+  // Dates and group size the traveler already chose (search, Build my trip, the Captain's calendar): never ask twice.
+  const plan = useTripPlan.getState();
+  const planStart = upcoming(plan.start);
+  const [guests, setGuests] = useState(Number(presetGuests ?? plan.guests ?? 2));
+  const [date, setDate] = useState<string | undefined>(presetDate ?? planStart);
   // Return day. Experiences are one day; packages fill it from their length; guide hire is the traveler's choice.
-  const [end, setEnd] = useState<string | undefined>(presetEnd);
+  const [end, setEnd] = useState<string | undefined>(presetEnd ?? (!presetDate && planStart ? plan.end : undefined));
   const [meeting, setMeeting] = useState("");
   const [note, setNote] = useState("");
   const { user } = useAuth();

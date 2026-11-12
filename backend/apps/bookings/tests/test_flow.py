@@ -195,13 +195,14 @@ class HappyPathTests(FlowBase):
 
     def test_package_tier_pricing(self):
         pkg = t.make_live_captain("Leh Host", package=True).services.get(kind="package")
-        pkg.captain.weekly_slots.filter(weekday=6).update(is_available=False)
         start = t.next_weekday(10)
-        start += timedelta(days=(2 - start.weekday()) % 7)  # a Wednesday, so the 6 days always include a Sunday
+        start += timedelta(days=(2 - start.weekday()) % 7)  # a Wednesday, so the 6 days include a weekend
+        # A day off in the middle blocks a multi-day package; weekends never do.
+        pkg.captain.blocked_dates.create(date=start + timedelta(days=2))
         res = self.trav.post("/api/v1/bookings/", {"service_id": str(pkg.id), "guests": 2, "tier": "medium",
                                                    "start_date": str(start)}, format="json")
-        self.assertEqual(res.status_code, 409, "default slots are Mon–Sat; a 6-day trip spans a Sunday")
-        pkg.captain.weekly_slots.update(is_available=True)
+        self.assertEqual(res.status_code, 409)
+        pkg.captain.blocked_dates.all().delete()
         res = self.trav.post("/api/v1/bookings/", {"service_id": str(pkg.id), "guests": 2, "tier": "medium",
                                                    "start_date": str(start)}, format="json")
         self.assertEqual(res.status_code, 201, res.data)
@@ -505,11 +506,9 @@ class DiscoverySearchTests(FlowBase):
         date = t.next_weekday()
         self.booked_and_paid(date)
         self.captain.blocked_dates.create(date=date + timedelta(days=1))
-        self.captain.weekly_slots.filter(weekday=(date + timedelta(days=2)).weekday()).update(is_available=False)
-        cal = self.client.get(f"/api/v1/captains/{self.captain.code}/calendar/?from={date}&days=4").data
-        self.assertEqual([d["status"] for d in cal["days"]], ["booked", "blocked", "off", "free"])
-        self.assertEqual(len(cal["weekly"]), 7)
-        self.assertEqual(cal["unavailable"], [d["date"] for d in cal["days"][:3]])
+        cal = self.client.get(f"/api/v1/captains/{self.captain.code}/calendar/?from={date}&days=7").data
+        self.assertEqual([d["status"] for d in cal["days"]], ["booked", "blocked"] + ["free"] * 5)  # every weekday, Sundays too
+        self.assertEqual(cal["unavailable"], [d["date"] for d in cal["days"][:2]])
 
 
 class GuestDetailsTests(FlowBase):

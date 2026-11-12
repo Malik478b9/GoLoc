@@ -2,47 +2,32 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Button, Calendar, Card, Field, Loading, longDate, palette, Row, Screen, Section, Sheet, space, Stepper, T, toast, toastError } from "@goloc/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { Pressable, Switch, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useRefreshBusiness } from "../../../lib/data";
 
-type Slot = { weekday: number; is_available: boolean; start_time: string; end_time: string };
-type Availability = { weekly: Slot[]; blocked: { id: number; date: string; reason: string }[]; max_bookings_per_day: number };
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 5); // 5 AM – 10 PM
+type Availability = { blocked: { id: number; date: string; reason: string }[]; max_bookings_per_day: number };
 
-const hh = (t: string) => Number(t.slice(0, 2));
-const fmt = (h: number) => `${((h + 11) % 12) + 1} ${h >= 12 ? "PM" : "AM"}`;
-
-function HourPicker({ value, onChange, min = 0 }: { value: number; onChange: (h: number) => void; min?: number }) {
-  return (
-    <Row gap={10}>
-      <Pressable hitSlop={8} onPress={() => onChange(Math.max(min, value - 1))}><Ionicons name="remove-circle-outline" size={24} color={palette.ember} /></Pressable>
-      <T variant="bodyBold" style={{ minWidth: 52, textAlign: "center" }}>{fmt(value)}</T>
-      <Pressable hitSlop={8} onPress={() => onChange(Math.min(23, value + 1))}><Ionicons name="add-circle-outline" size={24} color={palette.ember} /></Pressable>
-    </Row>
-  );
-}
-
+/**
+ * Captains work every day, weekends included (that's when most people travel).
+ * The only controls: how many trips a day, and the dates you're not available.
+ * Going offline (home screen switch) stops all new bookings.
+ */
 export default function AvailabilityScreen() {
   const qc = useQueryClient();
   const refresh = useRefreshBusiness();
   const q = useQuery({ queryKey: ["availability"], queryFn: () => api.get<Availability>("/captain/availability/") });
-  const [weekly, setWeekly] = useState<Slot[]>([]);
   const [capacity, setCapacity] = useState(1);
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockDate, setBlockDate] = useState<string | undefined>();
   const [blockReason, setBlockReason] = useState("");
 
   useEffect(() => {
-    if (q.data) {
-      setWeekly(q.data.weekly);
-      setCapacity(q.data.max_bookings_per_day);
-    }
+    if (q.data) setCapacity(q.data.max_bookings_per_day);
   }, [q.data]);
 
   const save = useMutation({
-    mutationFn: () => api.put<Availability>("/captain/availability/", { weekly, max_bookings_per_day: capacity }),
+    mutationFn: () => api.put<Availability>("/captain/availability/", { max_bookings_per_day: capacity }),
     onSuccess: (d) => {
       qc.setQueryData(["availability"], d);
       refresh();
@@ -64,29 +49,16 @@ export default function AvailabilityScreen() {
     mutationFn: (id: number) => api.del(`/captain/availability/blocked/${id}/`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["availability"] }),
   });
-  const update = (weekday: number, patch: Partial<Slot>) => setWeekly((w) => w.map((s) => (s.weekday === weekday ? { ...s, ...patch } : s)));
 
   if (q.isLoading) return <Loading />;
   return (
-    <Screen title="Availability" footer={<Button title="Save weekly schedule" loading={save.isPending} onPress={() => save.mutate()} />}>
-      <Card style={{ gap: 4 }}>
-        {weekly.map((s) => (
-          <View key={s.weekday} style={{ paddingVertical: 8, borderBottomWidth: s.weekday < 6 ? 0.5 : 0, borderBottomColor: palette.line }}>
-            <Row style={{ justifyContent: "space-between" }}>
-              <T variant="bodyBold">{DAYS[s.weekday]}</T>
-              <Switch value={s.is_available} onValueChange={(v) => update(s.weekday, { is_available: v })} trackColor={{ true: palette.ember, false: palette.lineStrong }} thumbColor={palette.white} />
-            </Row>
-            {s.is_available ? (
-              <Row style={{ justifyContent: "space-between", marginTop: 6 }}>
-                <HourPicker value={hh(s.start_time)} onChange={(h) => update(s.weekday, { start_time: `${String(h).padStart(2, "0")}:00` })} min={HOURS[0]} />
-                <T variant="caption">to</T>
-                <HourPicker value={hh(s.end_time)} onChange={(h) => update(s.weekday, { end_time: `${String(h).padStart(2, "0")}:00` })} min={hh(s.start_time) + 1} />
-              </Row>
-            ) : (
-              <T variant="caption">Day off</T>
-            )}
-          </View>
-        ))}
+    <Screen title="Availability" footer={<Button title="Save trips per day" loading={save.isPending} onPress={() => save.mutate()} />}>
+      <Card style={{ flexDirection: "row", gap: space.md, alignItems: "flex-start" }}>
+        <Ionicons name="calendar" size={22} color={palette.ember} />
+        <View style={{ flex: 1 }}>
+          <T variant="bodyBold">You're open every day, weekends too</T>
+          <T variant="caption">Most trips happen on weekends and holidays. Block the dates you can't work below, or go offline from your home screen to pause all bookings.</T>
+        </View>
       </Card>
 
       <Card style={{ marginTop: space.md }}>

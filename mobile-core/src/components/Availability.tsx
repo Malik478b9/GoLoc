@@ -4,13 +4,12 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { api } from "../api/client";
-import type { CaptainCalendar, DayStatus, WeeklySlot } from "../api/types";
+import type { CaptainCalendar, DayStatus } from "../api/types";
 import { isoDate, longDate, todayISTDate } from "../format";
 import { fonts, palette, radius, space } from "../theme";
 import { Row, T } from "../ui/primitives";
 
 const WEEK = ["M", "T", "W", "T", "F", "S", "S"];
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** How far ahead travelers can look (matches the booking window). */
 const MONTHS_AHEAD = 5;
@@ -22,31 +21,6 @@ const LOOK: Record<DayStatus, { bg: string; fg: string; strike?: boolean }> = {
   off: { bg: "transparent", fg: palette.lineStrong },
   past: { bg: "transparent", fg: palette.lineStrong },
 };
-
-const hhmm = (t: string) => t.slice(0, 5);
-
-/** "Mon–Sat · 09:00–18:00", or one line per distinct set of hours. */
-export function weeklyHours(slots: WeeklySlot[]): string {
-  const open = slots.filter((s) => s.is_available).sort((a, b) => a.weekday - b.weekday);
-  if (!open.length) return "Not taking trips right now";
-  const groups = new Map<string, number[]>();
-  for (const s of open) {
-    const key = `${hhmm(s.start_time)}–${hhmm(s.end_time)}`;
-    groups.set(key, [...(groups.get(key) ?? []), s.weekday]);
-  }
-  const span = (days: number[]) => {
-    const runs: string[] = [];
-    let i = 0;
-    while (i < days.length) {
-      let j = i;
-      while (j + 1 < days.length && days[j + 1] === days[j] + 1) j++;
-      runs.push(j - i >= 2 ? `${DAY_NAMES[days[i]]}–${DAY_NAMES[days[j]]}` : days.slice(i, j + 1).map((d) => DAY_NAMES[d]).join(", "));
-      i = j + 1;
-    }
-    return runs.join(", ");
-  };
-  return [...groups.entries()].map(([hours, days]) => `${span(days)} · ${hours}`).join("\n");
-}
 
 /**
  * A Captain's month at a glance, like a shared work calendar: free days in green,
@@ -76,12 +50,6 @@ export function CaptainAvailability({ captainId, selected, onPick }: { captainId
 
   return (
     <View>
-      {cal.data?.weekly ? (
-        <Row gap={8} style={{ alignItems: "flex-start", marginBottom: space.md }}>
-          <Ionicons name="time-outline" size={16} color={palette.ink2} style={{ marginTop: 2 }} />
-          <T variant="small" style={{ flex: 1 }}>{weeklyHours(cal.data.weekly)}</T>
-        </Row>
-      ) : null}
       <Row style={{ justifyContent: "space-between", marginBottom: space.sm }}>
         <Pressable disabled={offset === 0} onPress={() => setOffset(offset - 1)} hitSlop={10} accessibilityLabel="Previous month">
           <Ionicons name="chevron-back" size={20} color={offset === 0 ? palette.line : palette.ink} />
